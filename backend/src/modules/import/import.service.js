@@ -6,10 +6,12 @@ const db = require('../../config/database');
 const { hashCPF } = require('../../utils/hash');
 
 /**
- * Detecta o formato do arquivo pela extensão
+ * Detecta o formato do arquivo pela extensão (do nome do arquivo ou caminho)
+ * @param {string} fileOrPath - Nome do arquivo original ou caminho completo
  */
-function detectFormat(filePath) {
-  const ext = path.extname(filePath).toLowerCase();
+function detectFormat(fileOrPath) {
+  if (!fileOrPath) return null;
+  const ext = path.extname(fileOrPath).toLowerCase();
   const map = { '.csv': 'csv', '.json': 'json', '.xml': 'xml', '.xlsx': 'xlsx' };
   return map[ext] || null;
 }
@@ -87,7 +89,7 @@ function normalizeRecord(raw) {
  * @param {string} filePath - Caminho do arquivo temporário
  * @returns {Promise<{inserted: number, updated: number, skipped: number, errors: Array, duration_ms: number}>}
  */
-async function importFile(eventId, filePath) {
+async function importFile(eventId, filePath, originalName) {
   const startTime = Date.now();
 
   // 1. Validar evento e obter salt
@@ -97,8 +99,8 @@ async function importFile(eventId, filePath) {
   }
   const eventSalt = eventRes.rows[0].salt;
 
-  // 2. Detectar formato e parse
-  const format = detectFormat(filePath);
+  // 2. Detectar formato — tenta pelo originalname primeiro, fallback para path
+  const format = detectFormat(originalName) || detectFormat(filePath);
   if (!format) {
     throw new Error('Formato de arquivo não suportado. Use CSV, JSON, XML ou XLSX.');
   }

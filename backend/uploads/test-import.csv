@@ -1,0 +1,3 @@
+﻿ticket_code,batch,hash_cpf,display_name,status
+EVT2026-TEST01,LOTE-TEST,abc123def456,Teste Usuario,linked
+EVT2026-TEST02,LOTE-TEST,def789ghi012,Teste Dois,linked

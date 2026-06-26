@@ -2,6 +2,8 @@ const importService = require('./import.service');
 
 /**
  * Lida com a requisição de upload e processamento do arquivo (CSV, JSON, XML, XLSX).
+ * O formato é detectado pelo nome original do arquivo (originalname),
+ * não pelo nome do arquivo temporário (que pode perder a extensão).
  */
 async function importFile(req, res) {
   try {
@@ -18,7 +20,7 @@ async function importFile(req, res) {
       return res.status(400).json({ error: 'Arquivo não fornecido (campo: file).' });
     }
 
-    const result = await importService.importFile(event_id, req.file.path);
+    const result = await importService.importFile(event_id, req.file.path, req.file.originalname);
     return res.status(200).json(result);
   } catch (error) {
     console.error('Erro no controller de importação:', error.message);
