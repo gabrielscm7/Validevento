@@ -1,0 +1,143 @@
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const env = require('./config/env');
+const database = require('./config/database');
+
+// Importar rotas
+const authRoutes       = require('./modules/auth/auth.routes');
+const importRoutes     = require('./modules/import/import.routes');
+const syncRoutes       = require('./modules/sync/sync.routes');
+const validationRoutes = require('./modules/validation/validation.routes');
+const dashboardRoutes  = require('./modules/dashboard/dashboard.routes');
+const eventsRoutes     = require('./modules/events/events.routes');
+const adminRoutes      = require('./modules/admin/admin.routes');
+const usersRoutes      = require('./modules/users/users.routes');
+const batchesRoutes    = require('./modules/batches/batches.routes');
+
+const app = express();
+
+// ── Security headers (Helmet) ──
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: false,
+}));
+
+// ── Rate limiting ──
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas requisições. Aguarde um momento.' },
+});
+
+const authLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas de login. Tente novamente em 5 minutos.' },
+});
+
+app.use(generalLimiter);
+
+// Configuração de CORS
+const corsOptions = {
+  origin: env.corsOrigin === '*' ? '*' : env.corsOrigin.split(',').map((s) => s.trim()),
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  maxAge: 86400,
+};
+app.use(cors(corsOptions));
+
+// Middlewares básicos
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// ────────────────────────────────────────────────
+// Rota de Diagnóstico / Health Monitor
+// ────────────────────────────────────────────────
+app.get('/api/health', async (req, res) => {
+  const diagnostics = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    env: env.nodeEnv,
+    database: 'unknown',
+    memory: process.memoryUsage(),
+  };
+
+  try {
+    await database.testConnection();
+    diagnostics.database = 'connected';
+  } catch (error) {
+    diagnostics.status = 'error';
+    diagnostics.database = 'disconnected';
+    diagnostics.error = error.message;
+  }
+
+  return res.status(diagnostics.status === 'ok' ? 200 : 500).json(diagnostics);
+});
+
+// ────────────────────────────────────────────────
+// Registrar Rotas da API
+// ────────────────────────────────────────────────
+app.use('/api/auth',       authLimiter, authRoutes);
+app.use('/api/import',     importRoutes);
+app.use('/api/sync',       syncRoutes);
+app.use('/api/validation', validationRoutes);
+app.use('/api/dashboard',  dashboardRoutes);
+app.use('/api/events',     eventsRoutes);
+app.use('/api/admin',      adminRoutes);
+app.use('/api/users',      usersRoutes);
+app.use('/api/batches',    batchesRoutes);
+
+// 404 — Rota não encontrada
+app.use((req, res) => {
+  res.status(404).json({ error: `Rota não encontrada: ${req.method} ${req.originalUrl}` });
+});
+
+// Handler global de erros
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error('Erro não tratado:', err);
+  res.status(err.status || 500).json({
+    error: 'Ocorreu um erro interno no servidor.',
+    details: env.nodeEnv === 'development' ? err.message : undefined,
+  });
+});
+
+// ────────────────────────────────────────────────
+// Iniciar o servidor
+// ────────────────────────────────────────────────
+const server = app.listen(env.port, () => {
+  console.log('===================================================');
+  console.log(` Servidor Validevento rodando na porta ${env.port}`);
+  console.log(` Modo: ${env.nodeEnv}`);
+  console.log(` CORS Permitido para: ${env.corsOrigin}`);
+  console.log('===================================================');
+
+  database.testConnection().catch(() => {
+    console.warn(
+      'AVISO: Banco de dados indisponível na inicialização. Verifique o Docker.'
+    );
+  });
+});
+
+// Graceful shutdown
+function shutdown(signal) {
+  console.log(`\n🛑 Sinal ${signal} recebido. Encerrando graciosamente...`);
+  server.close(() => {
+    console.log('Servidor HTTP fechado.');
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 10000);
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+module.exports = app;

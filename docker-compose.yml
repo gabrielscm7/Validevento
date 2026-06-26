@@ -1,0 +1,17 @@
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: validevento-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: validevento
+    ports:             # <--- Alinhado perfeitamente com 'environment' e 'image'
+      - "5432:5432"
+    volumes:           # <--- Alinhado perfeitamente com 'environment' e 'image'
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
