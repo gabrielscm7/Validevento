@@ -1,15 +1,14 @@
 import { useState, useRef, useCallback } from 'react'
-import { Upload, FileText, CheckCircle, AlertCircle, X, File } from 'lucide-react'
+import { Upload, FileText, CheckCircle, AlertCircle, X } from 'lucide-react'
 import api from '../../services/api'
 
-const ALLOWED_TYPES = ['.csv', '.json', '.xml', '.xlsx']
-const ALLOWED_MIME = [
-  'text/csv',
-  'application/json',
-  'text/xml',
-  'application/xml',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-]
+const ALLOWED_EXTS = ['.csv', '.json', '.xml', '.xlsx']
+
+function getExtension(f) {
+  const name = f.name || ''
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(dot).toLowerCase() : ''
+}
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`
@@ -27,8 +26,7 @@ export default function ImportTab({ eventId }) {
   const inputRef = useRef(null)
 
   const isValidFile = useCallback((f) => {
-    const ext = '.' + f.name.split('.').pop().toLowerCase()
-    return ALLOWED_TYPES.includes(ext) || ALLOWED_MIME.includes(f.type)
+    return ALLOWED_EXTS.includes(getExtension(f))
   }, [])
 
   const handleFile = useCallback((f) => {
@@ -136,7 +134,7 @@ export default function ImportTab({ eventId }) {
             <input
               ref={inputRef}
               type="file"
-              accept={ALLOWED_TYPES.join(',')}
+              accept=".csv,.json,.xml,.xlsx"
               onChange={(e) => handleFile(e.target.files[0])}
               className="hidden"
             />
