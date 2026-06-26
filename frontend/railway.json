@@ -8,6 +8,6 @@
   "deploy": {
     "runtime": "V2",
     "numReplicas": 1,
-    "startCommand": "npx vite preview --host 0.0.0.0 --port 3000"
+    "startCommand": "node server.js"
   }
 }
