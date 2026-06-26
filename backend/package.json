@@ -9,7 +9,11 @@
     "migrate": "node src/migrations/run.js",
     "seed": "node src/migrations/seed.js",
     "seed:test": "node src/migrations/seed-test-data.js",
-    "test": "node tests/api-test.js"
+    "test": "node tests/api-test.js",
+    "build": "echo 'No build step required'"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
