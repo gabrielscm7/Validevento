@@ -9,14 +9,16 @@ const api = axios.create({
   validateStatus: (status) => (status >= 200 && status < 300) || status === 304,
 })
 
-// Injeta token JWT em toda requisição autenticada
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('ve_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+  if (!config.headers['Cache-Control']) {
+    config.headers['Cache-Control'] = 'no-cache'
+    config.headers['Pragma'] = 'no-cache'
+  }
   return config
 })
 
-// Trata erros globais de autenticação
 api.interceptors.response.use(
   (res) => res,
   (err) => {

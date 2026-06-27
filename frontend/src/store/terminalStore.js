@@ -44,13 +44,21 @@ export const useTerminalStore = create(
         if (get().loadingEvent) return
         set({ loadingEvent: true })
         try {
-          const { data } = await api.get('/api/events/active')
-          await setEvent({ eventId: data.id })
+          const response = await api.get('/api/events/active', {
+            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
+          })
+          const event = response.data
+          if (event && event.id) {
+            set({ eventId: event.id, loadingEvent: false })
+            await setEventId(event.id)
+            console.log('Evento detectado:', event.name, '(' + event.id + ')')
+          } else {
+            set({ loadingEvent: false })
+            console.warn('API retornou resposta sem dados de evento. Status:', response.status)
+          }
+        } catch (err) {
           set({ loadingEvent: false })
-          console.log(`Evento detectado: ${data.name} (${data.id})`)
-        } catch {
-          set({ loadingEvent: false })
-          console.warn('Nenhum evento ativo encontrado. Execute npm run seed.')
+          console.warn('Erro ao buscar evento:', err.message || err)
         }
       },
     }),
