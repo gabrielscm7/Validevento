@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import api from '../services/api'
-import { setEventId } from '../services/localDB'
+import { setEventId, setTerminalId, getTerminalId } from '../services/localDB'
 
 export const useTerminalStore = create(
   persist(
@@ -9,29 +9,44 @@ export const useTerminalStore = create(
       terminalId:   null,
       terminalName: null,
       eventId:      import.meta.env.VITE_EVENT_ID || null,
-      eventSalt:    null,
       loadingEvent: false,
+      initialized:  false,
 
-      setTerminal: ({ terminalId, terminalName }) =>
-        set({ terminalId, terminalName }),
+      initTerminal: async () => {
+        if (get().initialized) return
+        const storedTerminalId = await getTerminalId()
+        if (storedTerminalId) {
+          set({ terminalId: storedTerminalId, initialized: true })
+          return
+        }
+        const newId = crypto.randomUUID()
+        await setTerminalId(newId)
+        set({ terminalId: newId, initialized: true })
+      },
 
-      setEvent: ({ eventId, eventSalt }) =>
-        set({ eventId, eventSalt }),
+      setTerminal: async ({ terminalId, terminalName }) => {
+        set({ terminalId, terminalName })
+        if (terminalId) await setTerminalId(terminalId)
+      },
+
+      setEvent: async ({ eventId }) => {
+        set({ eventId })
+        if (eventId) await setEventId(eventId)
+      },
 
       clear: () =>
-        set({ terminalId: null, terminalName: null, eventSalt: null }),
+        set({ terminalId: null, terminalName: null }),
 
       isConfigured: () => !!get().terminalId && !!get().eventId,
 
-      /** Busca evento ativo na API se VITE_EVENT_ID não foi configurado */
       ensureEvent: async () => {
-        if (get().eventId && get().eventSalt) return
+        if (get().eventId) return
         if (get().loadingEvent) return
         set({ loadingEvent: true })
         try {
           const { data } = await api.get('/api/events/active')
-          set({ eventId: data.id, eventSalt: data.salt, loadingEvent: false })
-          await setEventId(data.id)
+          await setEvent({ eventId: data.id })
+          set({ loadingEvent: false })
           console.log(`Evento detectado: ${data.name} (${data.id})`)
         } catch {
           set({ loadingEvent: false })
@@ -45,7 +60,6 @@ export const useTerminalStore = create(
         terminalId:   s.terminalId,
         terminalName: s.terminalName,
         eventId:      s.eventId,
-        eventSalt:    s.eventSalt,
       }),
     }
   )

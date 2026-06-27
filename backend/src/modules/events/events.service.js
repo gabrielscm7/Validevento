@@ -2,7 +2,7 @@ const db = require('../../config/database');
 
 async function getActiveEvent() {
   const result = await db.query(
-    `SELECT id, name, date, location, capacity, salt
+    `SELECT id, name, date, location, capacity
      FROM events
      WHERE active = true
      ORDER BY created_at DESC

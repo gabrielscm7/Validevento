@@ -12,7 +12,7 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const ALLOWED_EXTENSIONS = ['.csv', '.json', '.xml', '.xlsx'];
+const ALLOWED_EXTENSIONS = ['.csv', '.json', '.xml', '.xlsx', '.xlsm'];
 
 // Configurar multer com diskStorage para preservar a extensão original
 const storage = multer.diskStorage({

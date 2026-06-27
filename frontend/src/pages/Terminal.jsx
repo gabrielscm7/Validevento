@@ -13,19 +13,19 @@ import { SyncStatus }        from '../components/SyncStatus'
 import { ThemeToggle }       from '../components/ThemeToggle'
 
 const METHODS = [
-  { id: 'qr',      label: '📷 Câmera',      desc: 'Leia QRCode com a câmera do celular' },
+  { id: 'qr',      label: '📷 Câmera',      desc: 'Leia o QRCode do ingresso com a câmera do celular' },
   { id: 'scanner', label: '📟 Leitor USB',   desc: 'Use o leitor Elgin EL250' },
-  { id: 'search',  label: '🔍 Busca Manual', desc: 'Digite nome ou CPF do participante' },
+  { id: 'search',  label: '🔍 Busca Manual', desc: 'Digite o nome do participante' },
 ]
 
 export default function Terminal() {
   const { user, logout }            = useAuthStore()
-  const { terminalName, ensureEvent } = useTerminalStore()
+  const { terminalName, ensureEvent, initTerminal } = useTerminalStore()
   const navigate                     = useNavigate()
 
-  useEffect(() => { ensureEvent() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { initTerminal(); ensureEvent() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const { sync, isSyncing }   = useSync()
-  const { validateCPF }       = useValidation()
+  const { validateTicketCode }       = useValidation()
   const isOffline             = useOffline()
 
   const [method, setMethod]   = useState(null)
@@ -35,9 +35,9 @@ export default function Terminal() {
   const handleScan = useCallback(async (text) => {
     if (!scanning) return
     setScanning(false)
-    const res = await validateCPF(text)
+    const res = await validateTicketCode(text.trim().toLowerCase())
     setResult(res)
-  }, [scanning, validateCPF])
+  }, [scanning, validateTicketCode])
 
   const handleDismiss = () => {
     setResult(null)
@@ -135,7 +135,7 @@ export default function Terminal() {
 
         {method === 'search' && (
           <>
-            <p className="text-muted-foreground text-sm text-center mt-1">Busque pelo nome ou CPF do participante</p>
+            <p className="text-muted-foreground text-sm text-center mt-1">Busque pelo nome do participante</p>
             <SearchPanel onResult={(r) => { setResult(r); setMethod(null) }} />
           </>
         )}

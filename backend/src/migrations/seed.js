@@ -6,13 +6,11 @@ async function seed() {
   try {
     await testConnection();
 
-    // 1. Criar usuários padrão
     const saltRounds = 10;
     const adminPasswordHash = await bcrypt.hash('admin123', saltRounds);
     const validatorPasswordHash = await bcrypt.hash('validador123', saltRounds);
     const supervisorPasswordHash = await bcrypt.hash('supervisor123', saltRounds);
 
-    // Inserir Admin
     await pool.query(`
       INSERT INTO users (name, email, password_hash, role)
       VALUES ($1, $2, $3, $4)
@@ -20,7 +18,6 @@ async function seed() {
     `, ['Administrador Validevento', 'admin@validevento.com', adminPasswordHash, 'admin']);
     console.log('Usuário ADMIN semeado: admin@validevento.com (senha: admin123)');
 
-    // Inserir Validador
     await pool.query(`
       INSERT INTO users (name, email, password_hash, role)
       VALUES ($1, $2, $3, $4)
@@ -28,7 +25,6 @@ async function seed() {
     `, ['Validador Portaria 1', 'validador@validevento.com', validatorPasswordHash, 'validator']);
     console.log('Usuário VALIDATOR semeado: validador@validevento.com (senha: validador123)');
 
-    // Inserir Supervisor
     await pool.query(`
       INSERT INTO users (name, email, password_hash, role)
       VALUES ($1, $2, $3, $4)
@@ -36,21 +32,19 @@ async function seed() {
     `, ['Supervisor Portaria', 'supervisor@validevento.com', supervisorPasswordHash, 'supervisor']);
     console.log('Usuário SUPERVISOR semeado: supervisor@validevento.com (senha: supervisor123)');
 
-    // 2. Criar um evento padrão se não houver nenhum
     const eventRes = await pool.query('SELECT * FROM events LIMIT 1');
     let eventId;
 
     if (eventRes.rowCount === 0) {
       const newEvent = await pool.query(`
-        INSERT INTO events (name, date, location, capacity, salt)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO events (name, date, location, capacity)
+        VALUES ($1, $2, $3, $4)
         RETURNING id
       `, [
         'Evento de Teste Validevento',
         new Date('2026-06-29T18:00:00Z'),
         'Centro de Convenções Paulista',
-        1000,
-        'salt_secreto_evento_demonstrativo_2026'
+        1000
       ]);
       eventId = newEvent.rows[0].id;
       console.log(`Evento de teste criado com ID: ${eventId}`);

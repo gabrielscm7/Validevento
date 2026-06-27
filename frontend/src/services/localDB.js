@@ -3,14 +3,17 @@ import Dexie from 'dexie'
 export const db = new Dexie('portaria_db')
 
 db.version(1).stores({
-  tickets:    '++id, ticket_code, hash_cpf, status, event_id, updated_at',
-  entry_logs: '++id, ticket_id, hash_cpf, synced, created_at, event_id',
+  tickets:    '++id, ticket_code, status, event_id, updated_at',
+  entry_logs: '++id, ticket_id, synced, created_at, event_id',
   meta:       'key',
 })
 
-// ── Helpers ──────────────────────────────────────
+db.version(2).stores({
+  tickets:    '++id, ticket_code, status, event_id, [event_id+display_name], updated_at',
+  entry_logs: '++id, ticket_id, synced, created_at, event_id',
+  meta:       'key',
+})
 
-/** Salva ou actualiza timestamp de último sync */
 export async function setLastSync(isoString) {
   await db.meta.put({ key: 'last_sync_at', value: isoString })
 }
@@ -38,14 +41,12 @@ export async function getEventId() {
   return rec?.value ?? null
 }
 
-/** Apaga tudo e reinicia — usado quando troca de evento */
 export async function clearAll() {
   await db.tickets.clear()
   await db.entry_logs.clear()
   await db.meta.clear()
 }
 
-/** Retorna diagnóstico do IndexedDB */
 export async function getDBStats() {
   const tickets = await db.tickets.count()
   const pending = await db.entry_logs.where('synced').equals(0).count()

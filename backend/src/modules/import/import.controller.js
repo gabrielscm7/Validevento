@@ -7,7 +7,7 @@ const importService = require('./import.service');
  */
 async function importFile(req, res) {
   try {
-    const { event_id } = req.body;
+    const { event_id, batch } = req.body;
 
     if (!event_id) {
       if (req.file) {
@@ -20,7 +20,7 @@ async function importFile(req, res) {
       return res.status(400).json({ error: 'Arquivo não fornecido (campo: file).' });
     }
 
-    const result = await importService.importFile(event_id, req.file.path, req.file.originalname);
+    const result = await importService.importFile(event_id, req.file.path, req.file.originalname, batch);
     return res.status(200).json(result);
   } catch (error) {
     console.error('Erro no controller de importação:', error.message);

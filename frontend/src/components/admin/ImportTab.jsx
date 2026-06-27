@@ -23,6 +23,7 @@ export default function ImportTab({ eventId }) {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
+  const [batchOverride, setBatchOverride] = useState('')
   const inputRef = useRef(null)
 
   const isValidFile = useCallback((f) => {
@@ -74,6 +75,7 @@ export default function ImportTab({ eventId }) {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('event_id', eventId)
+    if (batchOverride.trim()) formData.append('batch', batchOverride.trim())
 
     try {
       const { data } = await api.post('/api/import/csv', formData, {
@@ -107,7 +109,7 @@ export default function ImportTab({ eventId }) {
             </p>
           </div>
           <span className="text-[10px] text-muted-foreground bg-muted px-2 py-1 rounded-full">
-            Campos: ticket_code, batch, hash_cpf, display_name, status
+            Campos: ticket_code (UUID v4), batch, display_name, status
           </span>
         </div>
 
@@ -190,7 +192,18 @@ export default function ImportTab({ eventId }) {
 
         {/* Botão de ação */}
         {file && (
-          <button
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <label className="label text-xs mb-1">Lote padrão (opcional)</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="Ex: LOTE-01 (usado se o arquivo não tiver coluna lote)"
+                value={batchOverride}
+                onChange={(e) => setBatchOverride(e.target.value)}
+              />
+            </div>
+            <button
             type="submit"
             disabled={loading}
             className="btn-primary py-2.5 px-5 text-sm w-full sm:w-auto"
@@ -207,6 +220,7 @@ export default function ImportTab({ eventId }) {
               </span>
             )}
           </button>
+          </div>
         )}
       </form>
 

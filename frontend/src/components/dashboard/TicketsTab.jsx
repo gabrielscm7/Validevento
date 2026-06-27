@@ -28,22 +28,19 @@ import { Badge } from '../ui/badge'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Todos os status' },
-  { value: 'generated', label: 'Gerados' },
-  { value: 'linked', label: 'Vinculados' },
+  { value: 'active', label: 'Ativos' },
   { value: 'validated', label: 'Validados' },
   { value: 'blocked', label: 'Bloqueados' },
 ]
 
 const STATUS_BADGE = {
-  generated: 'bg-muted text-muted-foreground',
-  linked: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
+  active: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
   validated: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
   blocked: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300',
 }
 
 const STATUS_LABEL = {
-  generated: 'Gerado',
-  linked: 'Vinculado',
+  active: 'Ativo',
   validated: 'Validado',
   blocked: 'Bloqueado',
 }

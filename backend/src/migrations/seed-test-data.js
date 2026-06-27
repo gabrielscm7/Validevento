@@ -1,39 +1,32 @@
-const crypto = require('crypto');
 const { pool } = require('../config/database');
 
-function hashCPF(cpf, salt) {
-  const cpfClean = cpf.replace(/\D/g, '');
-  return crypto.createHash('sha256').update(cpfClean + salt).digest('hex');
-}
-
 const TEST_TICKETS = [
-  { ticket_code: 'EVT2026-000001', batch: 'LOTE-01', cpf: '529.482.170-01', display_name: 'Ana Beatriz S.',   status: 'validated' },
-  { ticket_code: 'EVT2026-000002', batch: 'LOTE-01', cpf: '381.655.920-80', display_name: 'Carlos Eduardo M.', status: 'validated' },
-  { ticket_code: 'EVT2026-000003', batch: 'LOTE-02', cpf: '047.326.510-50', display_name: 'Marina Oliveira',    status: 'validated' },
-  { ticket_code: 'EVT2026-000004', batch: 'LOTE-02', cpf: '772.548.310-03', display_name: 'Rafael Costa',       status: 'validated' },
-  { ticket_code: 'EVT2026-000005', batch: 'LOTE-03', cpf: '613.249.870-08', display_name: 'Juliana Lima',       status: 'linked' },
-  { ticket_code: 'EVT2026-000006', batch: 'LOTE-03', cpf: '198.765.430-57', display_name: 'Thiago Alves',       status: 'linked' },
-  { ticket_code: 'EVT2026-000007', batch: 'LOTE-01', cpf: '905.432.180-66', display_name: 'Fernanda Souza',     status: 'blocked' },
-  { ticket_code: 'EVT2026-000008', batch: 'LOTE-04', cpf: '334.679.210-00', display_name: 'Gustavo Santos',     status: 'generated' },
-  { ticket_code: 'EVT2026-000009', batch: 'LOTE-04', cpf: '176.348.920-61', display_name: 'Larissa Rocha',      status: 'linked' },
-  { ticket_code: 'EVT2026-000010', batch: 'LOTE-02', cpf: '448.215.670-39', display_name: 'Pedro Henrique N.',  status: 'generated' },
+  { ticket_code: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d', batch: 'LOTE-01', display_name: 'Ana Beatriz S.',   status: 'validated' },
+  { ticket_code: 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e', batch: 'LOTE-01', display_name: 'Carlos Eduardo M.', status: 'validated' },
+  { ticket_code: 'c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f', batch: 'LOTE-02', display_name: 'Marina Oliveira',    status: 'validated' },
+  { ticket_code: 'd4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a', batch: 'LOTE-02', display_name: 'Rafael Costa',       status: 'validated' },
+  { ticket_code: 'e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8a9b', batch: 'LOTE-03', display_name: 'Juliana Lima',       status: 'active' },
+  { ticket_code: 'f6a7b8c9-d0e1-4f2a-3b4c-5d6e7f8a9b0c', batch: 'LOTE-03', display_name: 'Thiago Alves',       status: 'active' },
+  { ticket_code: 'a7b8c9d0-e1f2-4a3b-4c5d-6e7f8a9b0c1d', batch: 'LOTE-01', display_name: 'Fernanda Souza',     status: 'blocked' },
+  { ticket_code: 'b8c9d0e1-f2a3-4b4c-5d6e-7f8a9b0c1d2e', batch: 'LOTE-04', display_name: 'Gustavo Santos',     status: 'active' },
+  { ticket_code: 'c9d0e1f2-a3b4-4c5d-6e7f-8a9b0c1d2e3f', batch: 'LOTE-04', display_name: 'Larissa Rocha',      status: 'active' },
+  { ticket_code: 'd0e1f2a3-b4c5-4d6e-7f8a-9b0c1d2e3f4a', batch: 'LOTE-02', display_name: 'Pedro Henrique N.',  status: 'active' },
 ]
 
 async function seedTestData() {
   console.log('Criando dados de teste...');
 
   const eventRes = await pool.query(
-    'SELECT id, salt, name FROM events WHERE active = true ORDER BY created_at DESC LIMIT 1'
+    'SELECT id, name FROM events WHERE active = true ORDER BY created_at DESC LIMIT 1'
   );
   if (eventRes.rowCount === 0) {
     console.log('Nenhum evento ativo encontrado. Execute npm run seed primeiro.');
     process.exit(1);
   }
 
-  const { id: eventId, salt: eventSalt, name: eventName } = eventRes.rows[0];
+  const { id: eventId, name: eventName } = eventRes.rows[0];
   console.log(`Evento: ${eventName} (${eventId})`);
 
-  // Limpar dados existentes deste evento
   await pool.query('DELETE FROM entry_logs WHERE event_id = $1', [eventId]);
   await pool.query('DELETE FROM tickets WHERE event_id = $1', [eventId]);
 
@@ -41,25 +34,23 @@ async function seedTestData() {
   const entryLogs = [];
 
   for (const t of TEST_TICKETS) {
-    const hash = t.cpf ? hashCPF(t.cpf, eventSalt) : null;
     const validatedAt = t.status === 'validated'
       ? new Date(Date.now() - Math.random() * 7200000).toISOString()
       : null;
 
     const result = await pool.query(
-      `INSERT INTO tickets (event_id, ticket_code, batch, hash_cpf, display_name, status, validated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO tickets (event_id, ticket_code, batch, display_name, status, validated_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id`,
-      [eventId, t.ticket_code, t.batch, hash, t.display_name, t.status, validatedAt]
+      [eventId, t.ticket_code, t.batch, t.display_name, t.status, validatedAt]
     );
 
     const ticketId = result.rows[0].id;
     inserted++;
 
-    if (t.status === 'validated' && hash) {
+    if (t.status === 'validated') {
       entryLogs.push({
         ticket_id: ticketId,
-        hash_cpf:  hash,
         entry_type: Math.random() > 0.7 ? 'manual' : 'qrcode',
         created_at: validatedAt,
       });
@@ -68,34 +59,33 @@ async function seedTestData() {
 
   console.log(`${inserted} ingressos inseridos.`);
 
-  // Inserir logs das entradas validadas
   for (const log of entryLogs) {
     const isDuplicate = Math.random() < 0.05;
     if (isDuplicate) {
       await pool.query(
-        `INSERT INTO entry_logs (ticket_id, event_id, hash_cpf, entry_type, is_duplicate, synced, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [log.ticket_id, eventId, log.hash_cpf, log.entry_type, false, true, log.created_at]
+        `INSERT INTO entry_logs (ticket_id, event_id, entry_type, is_duplicate, synced, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [log.ticket_id, eventId, log.entry_type, false, true, log.created_at]
       );
       await pool.query(
-        `INSERT INTO entry_logs (ticket_id, event_id, hash_cpf, entry_type, is_duplicate, synced, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [log.ticket_id, eventId, log.hash_cpf, 'qrcode', true, true, new Date(Date.now() - 600000).toISOString()]
+        `INSERT INTO entry_logs (ticket_id, event_id, entry_type, is_duplicate, synced, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [log.ticket_id, eventId, 'qrcode', true, true, new Date(Date.now() - 600000).toISOString()]
       );
     } else {
       await pool.query(
-        `INSERT INTO entry_logs (ticket_id, event_id, hash_cpf, entry_type, is_duplicate, synced, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [log.ticket_id, eventId, log.hash_cpf, log.entry_type, false, true, log.created_at]
+        `INSERT INTO entry_logs (ticket_id, event_id, entry_type, is_duplicate, synced, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [log.ticket_id, eventId, log.entry_type, false, true, log.created_at]
       );
     }
   }
 
   console.log(`${entryLogs.length} logs de entrada criados.`);
   console.log('\n--- Dados de teste criados com sucesso! ---');
-  console.log(`${inserted} ingressos (${TEST_TICKETS.filter(t => t.status === 'validated').length} validados, ${TEST_TICKETS.filter(t => t.status === 'linked').length} vinculados, ${TEST_TICKETS.filter(t => t.status === 'blocked').length} bloqueados, ${TEST_TICKETS.filter(t => t.status === 'generated').length} gerados)`);
-  console.log('CPFs usados (para testar QRCode):');
-  TEST_TICKETS.filter(t => t.cpf).forEach(t => console.log(`  ${t.display_name}: ${t.cpf}`));
+  console.log(`${inserted} ingressos (${TEST_TICKETS.filter(t => t.status === 'validated').length} validados, ${TEST_TICKETS.filter(t => t.status === 'active').length} ativos, ${TEST_TICKETS.filter(t => t.status === 'blocked').length} bloqueados)`);
+  console.log('Ticket codes UUID (para testar QRCode):');
+  TEST_TICKETS.forEach(t => console.log(`  ${t.display_name}: ${t.ticket_code}`));
 
   await pool.end();
 }

@@ -1,6 +1,5 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { db }           from '../services/localDB'
-import { hashCPF }      from '../services/hashService'
 import { useTerminalStore } from '../store/terminalStore'
 import { useAuthStore }     from '../store/authStore'
 import api from '../services/api'
@@ -13,35 +12,83 @@ const RESULT = {
   ERROR:      'error',
 }
 
+const PENDING_VERIFICATION_KEY = 've_pending_verification'
+
+function loadPendingVerification() {
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_VERIFICATION_KEY) || '[]')
+  } catch { return [] }
+}
+
+function savePendingVerification(queue) {
+  localStorage.setItem(PENDING_VERIFICATION_KEY, JSON.stringify(queue))
+}
+
 export function useValidation() {
-  const { eventId, terminalId, eventSalt } = useTerminalStore()
+  const { eventId, terminalId } = useTerminalStore()
   const { user } = useAuthStore()
 
-  /**
-   * Validação offline-first por CPF em claro (do QRCode)
-   */
-  const validateCPF = useCallback(async (cpfRaw) => {
+  const processPendingVerifications = useCallback(async () => {
+    if (!navigator.onLine) return
+    const pending = loadPendingVerification()
+    if (pending.length === 0) return
+
+    const now = Date.now()
+    const fresh = pending.filter(p => now - new Date(p.timestamp).getTime() < 3600000)
+    savePendingVerification([])
+
+    for (const item of fresh) {
+      try {
+        const { data } = await api.post('/api/validation/qrcode', {
+          ticket_code: item.ticket_code,
+          event_id:    eventId,
+          terminal_id: terminalId,
+        })
+        if (data.status === 'authorized' || data.status === 'duplicate' || data.status === 'blocked') {
+          console.log(`Ticket ${item.ticket_code} confirmado no servidor (estava ausente localmente).`)
+        }
+      } catch { /* silent */ }
+    }
+  }, [eventId, terminalId])
+
+  const pendingVerificationRef = useRef(false)
+
+  useEffect(() => {
+    const handleOnline = () => {
+      if (!pendingVerificationRef.current) {
+        pendingVerificationRef.current = true
+        processPendingVerifications().finally(() => {
+          pendingVerificationRef.current = false
+        })
+      }
+    }
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [processPendingVerifications])
+
+  const validateTicketCode = useCallback(async (ticketCode) => {
+    const code = ticketCode.trim().toLowerCase()
     try {
-      // ── Online path: delegar ao backend ──────────────────────
       if (navigator.onLine) {
         const { data } = await api.post('/api/validation/qrcode', {
-          cpf_raw:     cpfRaw,
+          ticket_code: code,
           event_id:    eventId,
           terminal_id: terminalId,
         })
         return data
       }
 
-      // ── Offline path: consulta IndexedDB ─────────────────────
-      if (!eventSalt) throw new Error('Salt do evento não disponível para modo offline.')
-      const hash = await hashCPF(cpfRaw, eventSalt)
-
       const ticket = await db.tickets
-        .where('hash_cpf').equals(hash)
+        .where('ticket_code').equals(code)
         .and((t) => t.event_id === eventId)
         .first()
 
-      if (!ticket) return { status: RESULT.NOT_FOUND }
+      if (!ticket) {
+        const pending = loadPendingVerification()
+        pending.push({ ticket_code: code, timestamp: new Date().toISOString(), event_id: eventId })
+        savePendingVerification(pending.slice(-50))
+        return { status: RESULT.NOT_FOUND }
+      }
       if (ticket.status === 'blocked')   return { status: RESULT.BLOCKED, ticket_code: ticket.ticket_code }
       if (ticket.status === 'validated') {
         return {
@@ -50,46 +97,20 @@ export function useValidation() {
           display_name: ticket.display_name,
         }
       }
-      if (ticket.status === 'generated') {
-        // Ticket existe mas sem CPF vinculado — vincular o CPF do QR e autorizar
-        const now = new Date().toISOString()
-        await db.tickets.update(ticket.id, { hash_cpf: hash, status: 'validated', validated_at: now })
-        await db.entry_logs.add({
-          id:          crypto.randomUUID(),
-          ticket_id:   ticket.id,
-          event_id:    eventId,
-          hash_cpf:    hash,
-          entry_type:  'qrcode',
-          terminal_id: terminalId,
-          validator_id: user?.id,
-          is_duplicate: false,
-          synced:      0,
-          created_at:  now,
-        })
-        return {
-          status:       RESULT.AUTHORIZED,
-          ticket_code:  ticket.ticket_code,
-          display_name: ticket.display_name,
-          batch:        ticket.batch,
-        }
-      }
 
-      // Autorizar localmente
       const now = new Date().toISOString()
       await db.tickets.update(ticket.id, { status: 'validated', validated_at: now })
 
-      // Enfileirar log offline
       await db.entry_logs.add({
-        id:          crypto.randomUUID(),
-        ticket_id:   ticket.id,
-        event_id:    eventId,
-        hash_cpf:    hash,
-        entry_type:  'qrcode',
-        terminal_id: terminalId,
+        id:           crypto.randomUUID(),
+        ticket_id:    ticket.id,
+        event_id:     eventId,
+        entry_type:   'qrcode',
+        terminal_id:  terminalId,
         validator_id: user?.id,
         is_duplicate: false,
-        synced:      0,
-        created_at:  now,
+        synced:       0,
+        created_at:   now,
       })
 
       return {
@@ -102,11 +123,8 @@ export function useValidation() {
       console.error('Erro na validação:', err)
       return { status: RESULT.ERROR, reason: err.message }
     }
-  }, [eventId, terminalId, eventSalt, user])
+  }, [eventId, terminalId, user])
 
-  /**
-   * Confirmação de entrada manual (após busca)
-   */
   const validateManual = useCallback(async (ticketId) => {
     try {
       if (navigator.onLine) {
@@ -118,14 +136,12 @@ export function useValidation() {
         return data
       }
 
-      // Offline manual
       const ticket = await db.tickets.get(ticketId)
       if (!ticket) return { status: RESULT.NOT_FOUND }
       if (ticket.status === 'validated') {
         return { status: RESULT.DUPLICATE, ticket_code: ticket.ticket_code, display_name: ticket.display_name }
       }
       if (ticket.status === 'blocked') return { status: RESULT.BLOCKED }
-      if (ticket.status === 'generated') return { status: 'invalid_status', reason: 'Sem CPF vinculado.' }
 
       const now = new Date().toISOString()
       await db.tickets.update(ticket.id, { status: 'validated', validated_at: now })
@@ -133,7 +149,6 @@ export function useValidation() {
         id:           crypto.randomUUID(),
         ticket_id:    ticket.id,
         event_id:     eventId,
-        hash_cpf:     ticket.hash_cpf,
         entry_type:   'manual',
         terminal_id:  terminalId,
         validator_id: user?.id,
@@ -153,5 +168,5 @@ export function useValidation() {
     }
   }, [eventId, terminalId, user])
 
-  return { validateCPF, validateManual }
+  return { validateTicketCode, validateManual }
 }

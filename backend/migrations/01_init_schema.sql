@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS events (
   date          TIMESTAMPTZ NOT NULL,
   location      VARCHAR(255),
   capacity      INTEGER NOT NULL DEFAULT 1000,
-  salt          VARCHAR(64) NOT NULL, -- salt único por evento para hash CPF
   active        BOOLEAN DEFAULT true,
   created_at    TIMESTAMPTZ DEFAULT now()
 );
@@ -28,20 +27,18 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS tickets (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   event_id      UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  ticket_code   VARCHAR(50) NOT NULL UNIQUE, -- ex: EVT2026-004521
+  ticket_code   VARCHAR(36) NOT NULL UNIQUE, -- UUID v4 lido do QRCode
   batch         VARCHAR(50) NOT NULL,         -- ex: LOTE-03
-  hash_cpf      VARCHAR(64),                  -- NULL se ainda não vinculado
   display_name  VARCHAR(100),                 -- ex: "Carlos S." — nome parcial
-  status        VARCHAR(20) NOT NULL DEFAULT 'generated',
+  status        VARCHAR(20) NOT NULL DEFAULT 'active',
   imported_at   TIMESTAMPTZ DEFAULT now(),
   validated_at  TIMESTAMPTZ,
   updated_at    TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT valid_status CHECK (
-    status IN ('generated', 'linked', 'validated', 'blocked')
+    status IN ('active', 'validated', 'blocked')
   )
 );
 
-CREATE INDEX IF NOT EXISTS idx_tickets_hash_cpf ON tickets(hash_cpf);
 CREATE INDEX IF NOT EXISTS idx_tickets_status   ON tickets(status);
 CREATE INDEX IF NOT EXISTS idx_tickets_event    ON tickets(event_id);
 
@@ -61,7 +58,6 @@ CREATE TABLE IF NOT EXISTS entry_logs (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   ticket_id     UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
   event_id      UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  hash_cpf      VARCHAR(64) NOT NULL,
   entry_type    VARCHAR(20) NOT NULL,  -- qrcode | manual
   terminal_id   UUID REFERENCES terminals(id) ON DELETE SET NULL,
   validator_id  UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -70,6 +66,5 @@ CREATE TABLE IF NOT EXISTS entry_logs (
   created_at    TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_logs_hash_cpf ON entry_logs(hash_cpf);
 CREATE INDEX IF NOT EXISTS idx_logs_event    ON entry_logs(event_id);
 CREATE INDEX IF NOT EXISTS idx_logs_synced   ON entry_logs(synced);

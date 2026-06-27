@@ -3,36 +3,24 @@ const path = require('path');
 const { parse } = require('csv-parse');
 const XLSX = require('xlsx');
 const db = require('../../config/database');
-const { hashCPF } = require('../../utils/hash');
+const { isValidUUIDv4 } = require('../../utils/validation');
 
-/**
- * Detecta o formato do arquivo pela extensão (do nome do arquivo ou caminho)
- * @param {string} fileOrPath - Nome do arquivo original ou caminho completo
- */
 function detectFormat(fileOrPath) {
   if (!fileOrPath) return null;
   const ext = path.extname(fileOrPath).toLowerCase();
-  const map = { '.csv': 'csv', '.json': 'json', '.xml': 'xml', '.xlsx': 'xlsx' };
+  const map = { '.csv': 'csv', '.json': 'json', '.xml': 'xml', '.xlsx': 'xlsx', '.xlsm': 'xlsx' };
   return map[ext] || null;
 }
 
-/**
- * Parse de arquivo JSON (array de objetos)
- */
 function parseJSON(filePath) {
   const raw = fs.readFileSync(filePath, 'utf-8');
   const data = JSON.parse(raw);
   return Array.isArray(data) ? data : (data.data || data.rows || data.tickets || [data]);
 }
 
-/**
- * Parse simples de XML (flat, campos como tags)
- * Suporta formatos: <tickets><ticket><ticket_code>...</ticket_code>...</ticket></tickets>
- */
 function parseXML(filePath) {
   const raw = fs.readFileSync(filePath, 'utf-8');
   const records = [];
-  // Extrai blocos entre tags de ticket/item/row/record
   const ticketRegex = /<(?:ticket|item|row|record|ingresso)\b[^>]*>([\s\S]*?)<\/(?:ticket|item|row|record|ingresso)>/gi;
   let match;
   while ((match = ticketRegex.exec(raw)) !== null) {
@@ -45,7 +33,6 @@ function parseXML(filePath) {
     }
     if (Object.keys(record).length > 0) records.push(record);
   }
-  // Fallback: procura tags diretas no root
   if (records.length === 0) {
     const rootRegex = /<(\w+)>([\s\S]*?)<\/\1>/gi;
     let rm;
@@ -60,9 +47,6 @@ function parseXML(filePath) {
   return records;
 }
 
-/**
- * Parse de arquivo XLSX (primeira planilha)
- */
 function parseXLSX(filePath) {
   const workbook = XLSX.readFile(filePath);
   const sheetName = workbook.SheetNames[0];
@@ -70,10 +54,6 @@ function parseXLSX(filePath) {
   return XLSX.utils.sheet_to_json(sheet, { defval: '' });
 }
 
-/**
- * Mapa de aliases case-insensitive para campos conhecidos.
- * Chave = nome do campo em lowercase, valor = nome canônico interno.
- */
 const FIELD_ALIASES = {
   codigo: 'ticket_code',
   nome: 'display_name',
@@ -81,18 +61,12 @@ const FIELD_ALIASES = {
   id_ingresso: 'ticket_code',
   id: 'ticket_code',
   code: 'ticket_code',
-  cpf: 'cpf',
-  hash_cpf: 'hash_cpf',
   lote: 'batch',
   batch_name: 'batch',
   nome_exibicao: 'display_name',
   name: 'display_name',
 };
 
-/**
- * Normaliza as chaves de um registro raw para lowercase,
- * aplicando aliases de campos conhecidos (ex: "Codigo" → ticket_code).
- */
 function normalizeKeys(raw) {
   const out = {};
   for (const key of Object.keys(raw)) {
@@ -105,38 +79,23 @@ function normalizeKeys(raw) {
   return out;
 }
 
-/**
- * Normaliza um registro de qualquer formato para o schema interno.
- * Campos ausentes recebem valores padrão.
- */
-function normalizeRecord(raw) {
+function normalizeRecord(raw, batchOverride) {
   const r = normalizeKeys(raw);
   const ticketCode   = r.ticket_code || '';
-  const batch        = r.batch || 'LOTE-01';
-  const rawCpf       = r.cpf || null;
-  const hashCpfField = r.hash_cpf || null;
+  const batch        = batchOverride || r.batch || 'LOTE-01';
   const displayName  = r.display_name || null;
-  const status       = (r.status || 'generated').toLowerCase();
-  return { ticketCode, batch, rawCpf, hashCpfField, displayName, status };
+  const status       = (r.status || 'active').toLowerCase();
+  return { ticketCode, batch, displayName, status };
 }
 
-/**
- * Processa a importação de ingressos via arquivo (CSV, JSON, XML, XLSX)
- * @param {string} eventId - UUID do evento
- * @param {string} filePath - Caminho do arquivo temporário
- * @returns {Promise<{inserted: number, updated: number, skipped: number, errors: Array, duration_ms: number}>}
- */
-async function importFile(eventId, filePath, originalName) {
+async function importFile(eventId, filePath, originalName, batchOverride) {
   const startTime = Date.now();
 
-  // 1. Validar evento e obter salt
-  const eventRes = await db.query('SELECT salt FROM events WHERE id = $1', [eventId]);
+  const eventRes = await db.query('SELECT id FROM events WHERE id = $1', [eventId]);
   if (eventRes.rowCount === 0) {
     throw new Error('Evento não encontrado para vincular os ingressos.');
   }
-  const eventSalt = eventRes.rows[0].salt;
 
-  // 2. Detectar formato — tenta pelo originalname primeiro, fallback para path
   const format = detectFormat(originalName) || detectFormat(filePath);
   if (!format) {
     throw new Error('Formato de arquivo não suportado. Use CSV, JSON, XML ou XLSX.');
@@ -161,7 +120,6 @@ async function importFile(eventId, filePath, originalName) {
     throw new Error('Nenhum registro encontrado no arquivo.');
   }
 
-  // 3. Processar registros
   let inserted = 0;
   let updated = 0;
   let skipped = 0;
@@ -170,36 +128,28 @@ async function importFile(eventId, filePath, originalName) {
   for (let i = 0; i < records.length; i++) {
     try {
       const raw = records[i];
-      const { ticketCode, batch, rawCpf, hashCpfField, displayName, status: rawStatus } = normalizeRecord(raw);
+      let { ticketCode, batch, displayName, status: rawStatus } = normalizeRecord(raw, batchOverride);
 
       if (!ticketCode) {
         errors.push({ line: i + 2, reason: 'ticket_code/id ausente.' });
         continue;
       }
 
+      ticketCode = ticketCode.trim().toLowerCase();
+
+      if (!isValidUUIDv4(ticketCode)) {
+        errors.push({ line: i + 2, reason: `ticket_code inválido: '${ticketCode}' não é um UUID v4 válido.` });
+        continue;
+      }
+
       let status = rawStatus;
-      const validStatuses = ['generated', 'linked', 'validated', 'blocked'];
+      const validStatuses = ['active', 'validated', 'blocked'];
       if (!validStatuses.includes(status)) {
-        status = 'generated';
-      }
-
-      let finalHashCpf = null;
-      if (hashCpfField && hashCpfField.length === 64) {
-        finalHashCpf = hashCpfField;
-      } else if (rawCpf) {
-        finalHashCpf = hashCPF(rawCpf, eventSalt);
-      } else if (hashCpfField) {
-        finalHashCpf = hashCPF(hashCpfField, eventSalt);
-      }
-
-      if (finalHashCpf && status === 'generated') {
-        status = 'linked';
-      } else if (!finalHashCpf && status === 'linked') {
-        status = 'generated';
+        status = 'active';
       }
 
       const checkRes = await db.query(
-        'SELECT id, status FROM tickets WHERE ticket_code = $1 AND event_id = $2',
+        'SELECT id, status FROM tickets WHERE LOWER(ticket_code) = $1 AND event_id = $2',
         [ticketCode, eventId]
       );
 
@@ -210,14 +160,14 @@ async function importFile(eventId, filePath, originalName) {
           continue;
         }
         await db.query(
-          `UPDATE tickets SET batch = $1, hash_cpf = $2, display_name = $3, status = $4, updated_at = NOW() WHERE id = $5`,
-          [batch, finalHashCpf, displayName, status, existing.id]
+          `UPDATE tickets SET batch = $1, display_name = $2, status = $3, updated_at = NOW() WHERE id = $4`,
+          [batch, displayName, status, existing.id]
         );
         updated++;
       } else {
         await db.query(
-          `INSERT INTO tickets (event_id, ticket_code, batch, hash_cpf, display_name, status) VALUES ($1, $2, $3, $4, $5, $6)`,
-          [eventId, ticketCode, batch, finalHashCpf, displayName, status]
+          `INSERT INTO tickets (event_id, ticket_code, batch, display_name, status) VALUES ($1, $2, $3, $4, $5)`,
+          [eventId, ticketCode, batch, displayName, status]
         );
         inserted++;
       }
@@ -226,7 +176,6 @@ async function importFile(eventId, filePath, originalName) {
     }
   }
 
-  // 4. Limpar arquivo temporário
   try { fs.unlinkSync(filePath); } catch { /* ignore */ }
 
   return {
@@ -240,9 +189,6 @@ async function importFile(eventId, filePath, originalName) {
   };
 }
 
-/**
- * Parse CSV via stream (mantido para compatibilidade)
- */
 function parseCSVStream(filePath) {
   return new Promise((resolve, reject) => {
     const records = [];

@@ -60,9 +60,8 @@
 │ id (uuid) PK    │──┐    │ id (uuid) PK     │──┐    │ id (uuid) PK   │
 │ name            │  │    │ event_id FK      │◄─┘    │ ticket_id FK   │◄┐
 │ date            │  └───►│ ticket_code      │       │ event_id FK    │ │
-│ location        │       │ batch            │       │ hash_cpf       │ │
-│ capacity        │       │ hash_cpf         │       │ entry_type     │ │
-│ salt            │       │ display_name     │       │ terminal_id    │ │
+│ location        │       │ batch            │       │ entry_type     │ │
+│ capacity        │       │ display_name     │       │ terminal_id    │ │
 │ created_at      │       │ status           │       │ validator_id   │ │
 └─────────────────┘       │ imported_at      │       │ is_duplicate   │ │
                           │ validated_at     │       │ synced         │ │
@@ -92,7 +91,6 @@ CREATE TABLE events (
   date          TIMESTAMPTZ NOT NULL,
   location      VARCHAR(255),
   capacity      INTEGER NOT NULL DEFAULT 1000,
-  salt          VARCHAR(64) NOT NULL, -- salt único por evento para hash CPF
   active        BOOLEAN DEFAULT true,
   created_at    TIMESTAMPTZ DEFAULT now()
 );
@@ -103,21 +101,19 @@ CREATE TABLE events (
 CREATE TABLE tickets (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   event_id      UUID NOT NULL REFERENCES events(id),
-  ticket_code   VARCHAR(50) NOT NULL UNIQUE, -- ex: EVT2026-004521
+  ticket_code   VARCHAR(36) NOT NULL UNIQUE, -- UUID v4 lido do QRCode
   batch         VARCHAR(50) NOT NULL,         -- ex: LOTE-03
-  hash_cpf      VARCHAR(64),                  -- NULL se ainda não vinculado
   display_name  VARCHAR(100),                 -- ex: "Carlos S." — nome parcial
-  status        VARCHAR(20) NOT NULL DEFAULT 'generated',
-  -- generated | linked | validated | blocked
+  status        VARCHAR(20) NOT NULL DEFAULT 'active',
+  -- active | validated | blocked
   imported_at   TIMESTAMPTZ DEFAULT now(),
   validated_at  TIMESTAMPTZ,
   updated_at    TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT valid_status CHECK (
-    status IN ('generated', 'linked', 'validated', 'blocked')
+    status IN ('active', 'validated', 'blocked')
   )
 );
 
-CREATE INDEX idx_tickets_hash_cpf ON tickets(hash_cpf);
 CREATE INDEX idx_tickets_status   ON tickets(status);
 CREATE INDEX idx_tickets_event    ON tickets(event_id);
 ```
@@ -128,7 +124,6 @@ CREATE TABLE entry_logs (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   ticket_id     UUID NOT NULL REFERENCES tickets(id),
   event_id      UUID NOT NULL REFERENCES events(id),
-  hash_cpf      VARCHAR(64) NOT NULL,
   entry_type    VARCHAR(20) NOT NULL,  -- qrcode | manual
   terminal_id   UUID REFERENCES terminals(id),
   validator_id  UUID REFERENCES users(id),
@@ -137,7 +132,6 @@ CREATE TABLE entry_logs (
   created_at    TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_logs_hash_cpf ON entry_logs(hash_cpf);
 CREATE INDEX idx_logs_event    ON entry_logs(event_id);
 CREATE INDEX idx_logs_synced   ON entry_logs(synced);
 ```
@@ -208,7 +202,7 @@ CREATE TABLE terminals (
 │   │   │       ├── import.controller.js
 │   │   │       └── import.service.js
 │   │   ├── utils/
-│   │   │   ├── hash.js            # SHA-256 com salt
+│   │   │   ├── validation.js      # validação UUID v4
 │   │   │   └── logger.js
 │   │   └── app.js
 │   ├── migrations/
@@ -241,7 +235,6 @@ CREATE TABLE terminals (
     │   │   ├── api.js             # axios instance
     │   │   ├── localDB.js         # Dexie (IndexedDB)
     │   │   ├── syncService.js     # lógica de sync
-    │   │   └── hashService.js     # hash CPF no cliente
     │   ├── hooks/
     │   │   ├── useSync.js
     │   │   ├── useValidation.js
@@ -299,7 +292,7 @@ GET    /api/import/history      [admin]
   "updated": 120,
   "skipped": 5,
   "errors": [
-    { "line": 23, "reason": "hash_cpf inválido" }
+    { "line": 23, "reason": "ticket_code inválido (não é UUID v4)" }
   ],
   "duration_ms": 1840
 }
@@ -319,7 +312,7 @@ GET    /api/validation/search   [validator, supervisor, admin]
 ```json
 // Request
 {
-  "cpf_raw": "111.222.333-44",
+  "ticket_code": "ff24a6be-fd79-47a5-95b0-ec9a79f3a1ec",
   "event_id": "uuid",
   "terminal_id": "uuid"
 }
@@ -356,8 +349,7 @@ GET    /api/validation/search   [validator, supervisor, admin]
 
 **GET /api/validation/search**
 ```
-?q=carlos&event_id=uuid          # busca por nome
-?cpf=11122233344&event_id=uuid   # busca por CPF
+?q=carlos&event_id=uuid          # busca por nome (mín. 3 caracteres)
 ```
 
 ```json
@@ -369,7 +361,7 @@ GET    /api/validation/search   [validator, supervisor, admin]
       "ticket_code": "EVT2026-004521",
       "display_name": "Carlos S.",
       "batch": "LOTE-03",
-      "status": "linked"
+      "status": "active"
     }
   ]
 }
@@ -412,7 +404,6 @@ Envia logs de entrada gerados offline para o servidor.
     {
       "local_id": "uuid-local",
       "ticket_id": "uuid",
-      "hash_cpf": "e3b0c...",
       "entry_type": "qrcode",
       "created_at": "2026-06-29T14:17:33Z"
     }
@@ -445,8 +436,8 @@ GET    /api/dashboard/export     [admin]
 const db = new Dexie('portaria_db');
 
 db.version(1).stores({
-  tickets:    '++id, ticket_code, hash_cpf, status, event_id',
-  entry_logs: '++id, ticket_id, hash_cpf, synced, created_at',
+  tickets:    '++id, ticket_code, status, event_id, updated_at',
+  entry_logs: '++id, ticket_id, synced, created_at, event_id',
   meta:       'key'  // last_sync_at, event_id, terminal_id
 });
 ```
@@ -454,17 +445,14 @@ db.version(1).stores({
 ### 5.2 Fluxo de validação offline-first
 
 ```
-QRCode lido (CPF raw)
+QRCode lido (UUID v4)
         │
         ▼
-Hash CPF no cliente (SHA-256 + salt do evento)
-        │
-        ▼
-Consulta IndexedDB local (< 10ms)
+Consulta IndexedDB local por ticket_code (< 10ms)
         │
         ├──► Encontrado
         │         │
-        │         ├── status: linked    ──► AUTORIZAR
+        │         ├── status: active    ──► AUTORIZAR
         │         │     │ atualiza status local para 'validated'
         │         │     │ grava entry_log local (synced: false)
         │         │     └──► tenta sync em background
@@ -473,7 +461,7 @@ Consulta IndexedDB local (< 10ms)
         │         │
         │         └── status: blocked   ──► BLOQUEAR
         │
-        └──► Não encontrado ──────────────► NÃO ENCONTRADO
+        └──► Não encontrado ──────────────► NÃO ENCONTRADO (fila de re-verificação ao reconectar)
 ```
 
 ### 5.3 Estratégia de sync
@@ -517,38 +505,14 @@ async function syncWithServer() {
 
 ## 6. Segurança e LGPD
 
-### 6.1 Hash do CPF
+### 6.1 Dados sensíveis
 
-```javascript
-// utils/hash.js
-const crypto = require('crypto');
+O sistema não armazena CPF em nenhuma forma. Os ingressos são identificados
+unicamente por UUID v4 (`ticket_code`), que não contém informação pessoal.
+Nomes parciais (`display_name`) são exibidos apenas para confirmação visual
+do validador.
 
-function hashCPF(cpf, eventSalt) {
-  const cpfClean = cpf.replace(/\D/g, ''); // remove pontuação
-  return crypto
-    .createHash('sha256')
-    .update(cpfClean + eventSalt)
-    .digest('hex');
-}
-```
-
-> O `eventSalt` é único por evento, gerado na criação. Isso garante que o mesmo CPF gere hashes diferentes em eventos distintos, impossibilitando rastreamento cruzado entre eventos.
-
-### 6.2 Fluxo de dados sensíveis
-
-```
-CPF em claro ──► NUNCA sai do sistema interno da empresa
-                  │
-                  │ apenas hash viaja para o sistema de validação
-                  ▼
-hash_cpf ──────► armazenado no banco de validação
-                  │
-                  │ apenas no terminal, na tela do validador
-                  ▼
-display_name ──► "Carlos S." (nome parcial — apenas para confirmação visual)
-```
-
-### 6.3 Autenticação e autorização
+### 6.2 Autenticação e autorização
 
 ```javascript
 // Middleware de autenticação
@@ -617,18 +581,18 @@ VitePWA({
 ## 8. Formato do CSV de Importação
 
 ```csv
-ticket_code,batch,hash_cpf,display_name,status
-EVT2026-000001,LOTE-01,e3b0c44298fc1c...,Maria O.,linked
-EVT2026-000002,LOTE-01,,,generated
-EVT2026-000003,LOTE-01,a87ff679a2f3e7...,João S.,linked
+ticket_code,batch,display_name,status
+ff24a6be-fd79-47a5-95b0-ec9a79f3a1ec,LOTE-01,Maria O.,active
+ff24a6be-fd79-47a5-95b0-ec9a79f3a1ec,LOTE-02,,active
+ff24a6be-fd79-47a5-95b0-ec9a79f3a1ec,LOTE-01,João S.,validated
 ```
 
 **Regras de validação do CSV:**
 - Linha 1 obrigatoriamente é o cabeçalho
-- `ticket_code` obrigatório e único
+- `ticket_code` obrigatório e único (UUID v4)
 - `batch` obrigatório
-- `hash_cpf` e `display_name` podem ser vazios (ingresso sem CPF vinculado)
-- `status` deve ser `generated`, `linked` ou `blocked`
+- `display_name` pode ser vazio
+- `status` deve ser `active`, `validated` ou `blocked`
 - Encoding: UTF-8
 
 ---
@@ -661,11 +625,10 @@ VITE_EVENT_ID=uuid-do-evento-ativo
 | **T-04** | Validar QRCode com rede cortada | Resposta local < 1s |
 | **T-05** | Reconectar após 10min offline | Sync automático, logs enviados |
 | **T-06** | Busca por nome parcial | Retorna resultados corretos |
-| **T-07** | Busca por CPF com e sem pontuação | Mesmo resultado |
-| **T-08** | Login com perfil validator | Sem acesso ao dashboard |
-| **T-09** | 6 terminais validando simultaneamente | Sem conflito de dados |
-| **T-10** | Importar CSV corrompido | Rejeita com mensagem clara, base intacta |
-| **T-11** | Ingresso com status `generated` | Bloqueia entrada, alerta |
+| **T-07** | Login com perfil validator | Sem acesso ao dashboard |
+| **T-08** | 6 terminais validando simultaneamente | Sem conflito de dados |
+| **T-09** | Importar CSV corrompido | Rejeita com mensagem clara, base intacta |
+| **T-10** | Importar XLSX com UUIDs | Processa corretamente, valida formato UUID v4 |
 | **T-12** | Forçar sync como validator | Operação negada |
 
 ---

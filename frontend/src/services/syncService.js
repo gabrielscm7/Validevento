@@ -30,15 +30,40 @@ export async function syncWithServer(forceFullSync = false) {
 
   const { data: snapshot } = await api.get('/api/sync/snapshot', { params })
 
-  // ── 3. Mesclar tickets na base local ──────────────────────────
+  // ── 3. Mesclar tickets na base local com resolução de conflito ─
+  // Os logs offline já foram processados pelo servidor (passo 1),
+  // mas o snapshot (passo 2) pode ainda não refletir essas mudanças
+  // pois o param `since` filtra por updated_at anterior ao sync.
+  // Isto é intencional — a regra RN-04 preserva o status validated local
+  // e o próximo sync capturará as atualizações do servidor.
   for (const ticket of snapshot.tickets) {
     const local = await db.tickets
       .where('ticket_code').equals(ticket.ticket_code).first()
 
-    // RN-04 client-side: não sobrescreve status validated local
-    if (!local || local.status !== 'validated') {
+    if (!local) {
       await db.tickets.put({ ...ticket })
+      continue
     }
+
+    // RN-04 client-side: nunca sobrescreve status validated local
+    if (local.status === 'validated') {
+      continue
+    }
+
+    // Se o ticket local foi modificado após o snapshot do servidor,
+    // preserva a versão local (provavelmente validação offline)
+    const localUpdated = local.updated_at ? new Date(local.updated_at).getTime() : 0
+    const serverUpdated = ticket.updated_at ? new Date(ticket.updated_at).getTime() : 0
+
+    if (localUpdated > serverUpdated) {
+      continue
+    }
+
+    // Servidor tem versão mais recente — atualizar
+    await db.tickets.put({
+      id: local.id,
+      ...ticket,
+    })
   }
 
   // ── 4. Atualizar timestamp ─────────────────────────────────────
@@ -46,10 +71,17 @@ export async function syncWithServer(forceFullSync = false) {
 
   // ── 5. Heartbeat para registrar o terminal como online ─────────
   if (terminalId) {
-    api.post('/api/sync/heartbeat', {
-      event_id:    eventId,
-      terminal_id: terminalId,
-    }).catch(() => { /* silencioso — offline */ })
+    try {
+      const { data } = await api.post('/api/sync/heartbeat', {
+        event_id:    eventId,
+        terminal_id: terminalId,
+        name:        navigator.userAgent?.slice(0, 80) || 'Terminal Móvel',
+      })
+      if (data.terminal_id && data.terminal_id !== terminalId) {
+        const { setTerminalId } = await import('./localDB')
+        await setTerminalId(data.terminal_id)
+      }
+    } catch { /* silencioso — offline */ }
   }
 
   return {

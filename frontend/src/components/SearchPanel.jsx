@@ -1,15 +1,13 @@
 import { useState, useCallback, useRef }  from 'react'
 import api  from '../services/api'
 import { db } from '../services/localDB'
-import { hashCPF, normalizeCPF } from '../services/hashService'
 import { useTerminalStore } from '../store/terminalStore'
 import { useAuthStore } from '../store/authStore'
 import { useValidation }    from '../hooks/useValidation'
 
 const STATUS_LABEL = {
-  linked:    { label: 'Disponível',  cls: 'badge-green'  },
+  active:    { label: 'Disponível',  cls: 'badge-green'  },
   validated: { label: 'Já entrou',   cls: 'badge-yellow' },
-  generated: { label: 'Sem CPF',     cls: 'badge-slate'  },
   blocked:   { label: 'Bloqueado',   cls: 'badge-red'    },
 }
 
@@ -19,7 +17,7 @@ export function SearchPanel({ onResult }) {
   const [loading, setLoading] = useState(false)
   const [confirming, setConfirming] = useState(null)
   const debounceRef = useRef(null)
-  const { eventId, eventSalt } = useTerminalStore()
+  const { eventId } = useTerminalStore()
   const token                  = useAuthStore((s) => s.token)
   const { validateManual }     = useValidation()
 
@@ -31,43 +29,43 @@ export function SearchPanel({ onResult }) {
     try {
       if (navigator.onLine) {
         if (!token) { setResults([]); setLoading(false); return }
-        const isCPF = /^[\d.-]+$/.test(trimmed)
-        const params = { event_id: eventId }
-        if (isCPF) params.cpf = normalizeCPF(trimmed)
-        else        params.q  = trimmed
-
-        const { data } = await api.get('/api/validation/search', { params })
+        const { data } = await api.get('/api/validation/search', { params: { event_id: eventId, q: trimmed } })
         setResults(data.results ?? [])
       } else {
-        const isCPF = /^[\d.-]+$/.test(trimmed)
-        if (isCPF) {
-          if (!eventSalt) { setResults([]); return }
-          const hash = await hashCPF(trimmed, eventSalt)
-          const t = await db.tickets
-            .where('hash_cpf').equals(hash)
-            .and((r) => r.event_id === eventId).first()
-          setResults(t ? [{ ticket_id: t.id, ticket_code: t.ticket_code, display_name: t.display_name, batch: t.batch, status: t.status }] : [])
-        } else {
-          if (trimmed.length < 3) { setResults([]); return }
-          const all = await db.tickets
-            .where('event_id').equals(eventId)
-            .filter((t) => t.display_name?.toLowerCase().includes(trimmed.toLowerCase()))
-            .limit(10).toArray()
-          setResults(all.map((t) => ({ ticket_id: t.id, ticket_code: t.ticket_code, display_name: t.display_name, batch: t.batch, status: t.status })))
-        }
+        if (trimmed.length < 3) { setResults([]); return }
+        const lower = trimmed.toLowerCase()
+        const results = []
+        await db.tickets
+          .where('event_id').equals(eventId)
+          .each((t) => {
+            if (results.length >= 10) return
+            if (
+              t.display_name?.toLowerCase().includes(lower) ||
+              t.ticket_code?.toLowerCase().includes(lower)
+            ) {
+              results.push({
+                ticket_id: t.id,
+                ticket_code: t.ticket_code,
+                display_name: t.display_name,
+                batch: t.batch,
+                status: t.status,
+              })
+            }
+          })
+        setResults(results)
       }
     } catch {
       setResults([])
     } finally {
       setLoading(false)
     }
-  }, [eventId, eventSalt, token])
+  }, [eventId, token])
 
   const handleChange = (e) => {
     const val = e.target.value
     setQuery(val)
     clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => search(val), 350)
+    debounceRef.current = setTimeout(() => search(val), 250)
   }
 
   const handleConfirm = async (ticketId) => {
@@ -85,7 +83,7 @@ export function SearchPanel({ onResult }) {
         id="search-input"
         className="input"
         type="search"
-        placeholder="Buscar por nome ou CPF…"
+        placeholder="Buscar por nome ou código…"
         value={query}
         onChange={handleChange}
         autoComplete="off"
@@ -108,7 +106,7 @@ export function SearchPanel({ onResult }) {
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span className={st.cls}>{st.label}</span>
-                  {r.status === 'linked' && (
+                  {r.status === 'active' && (
                     <button
                       id={`confirm-btn-${r.ticket_id}`}
                       className="btn-primary py-1.5 px-3 text-xs"

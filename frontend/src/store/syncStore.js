@@ -28,10 +28,10 @@ export const useSyncStore = create(
         }
       },
 
-      /** True se último sync há mais de 2 horas */
+      /** True se último sync há mais de 2 horas (nunca mostra stale antes do primeiro sync) */
       isStale: () => {
         const ts = get().lastSyncAt
-        if (!ts) return true
+        if (!ts) return false
         return Date.now() - new Date(ts).getTime() > 2 * 60 * 60 * 1000
       },
     }),

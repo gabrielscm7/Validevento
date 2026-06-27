@@ -30,7 +30,9 @@ export function SyncStatus({ showForce = false }) {
           ? `Modo offline — último sync: ${formatTime(lastSyncAt)}`
           : stale
           ? `Base desatualizada — sync: ${formatTime(lastSyncAt)}`
-          : `Sync: ${formatTime(lastSyncAt)}`}
+          : lastSyncAt
+          ? `Sync: ${formatTime(lastSyncAt)}`
+          : 'Sincronizando...'}
       </span>
 
       {syncError && (

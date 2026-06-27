@@ -80,13 +80,12 @@ async function exportCSV(req, res) {
     const logs = await dashboardService.getExportData(event_id);
 
     // Gerar string CSV
-    let csvContent = 'id_log,ticket_code,hash_cpf,timestamp,tipo_entrada,validador,terminal,duplicata\n';
+    let csvContent = 'id_log,ticket_code,timestamp,tipo_entrada,validador,terminal,duplicata\n';
     
     for (const log of logs) {
       const row = [
         log.id_log,
         log.ticket_code,
-        log.hash_cpf,
         log.timestamp ? new Date(log.timestamp).toISOString() : '',
         log.entry_type,
         `"${(log.validator_name || '').replace(/"/g, '""')}"`,
