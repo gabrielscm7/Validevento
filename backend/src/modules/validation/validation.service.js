@@ -52,9 +52,26 @@ async function validateQRCode(eventId, terminalId, validatorId, cpfRaw) {
     }
 
     // Se o ingresso está no status 'generated' (não vinculado a CPF ainda)
+    // RN-02 flexibilizada: o QR contém um CPF, então vinculamos ao ingresso e autorizamos
     if (ticket.status === 'generated') {
+      const now = new Date();
+      await client.query(
+        `UPDATE tickets SET hash_cpf = $1, status = 'validated', validated_at = $2, updated_at = NOW() WHERE id = $3`,
+        [hash, now, ticket.id]
+      );
+      const logRes = await client.query(
+        `INSERT INTO entry_logs (ticket_id, event_id, hash_cpf, entry_type, terminal_id, validator_id, is_duplicate, synced, created_at)
+         VALUES ($1, $2, $3, 'qrcode', $4, $5, false, true, $6) RETURNING id`,
+        [ticket.id, eventId, hash, terminalId || null, validatorId || null, now]
+      );
       await client.query('COMMIT');
-      return { status: 'invalid_status', reason: 'Ingresso sem CPF vinculado no sistema.', ticket_code: ticket.ticket_code };
+      return {
+        status: 'authorized',
+        ticket_code: ticket.ticket_code,
+        display_name: ticket.display_name,
+        batch: ticket.batch,
+        entry_log_id: logRes.rows[0].id
+      };
     }
 
     // Se o ingresso já foi validado antes (Duplicata)

@@ -51,7 +51,27 @@ export function useValidation() {
         }
       }
       if (ticket.status === 'generated') {
-        return { status: 'invalid_status', reason: 'Ingresso sem CPF vinculado.' }
+        // Ticket existe mas sem CPF vinculado — vincular o CPF do QR e autorizar
+        const now = new Date().toISOString()
+        await db.tickets.update(ticket.id, { hash_cpf: hash, status: 'validated', validated_at: now })
+        await db.entry_logs.add({
+          id:          crypto.randomUUID(),
+          ticket_id:   ticket.id,
+          event_id:    eventId,
+          hash_cpf:    hash,
+          entry_type:  'qrcode',
+          terminal_id: terminalId,
+          validator_id: user?.id,
+          is_duplicate: false,
+          synced:      0,
+          created_at:  now,
+        })
+        return {
+          status:       RESULT.AUTHORIZED,
+          ticket_code:  ticket.ticket_code,
+          display_name: ticket.display_name,
+          batch:        ticket.batch,
+        }
       }
 
       // Autorizar localmente

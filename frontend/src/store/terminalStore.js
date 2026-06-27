@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import api from '../services/api'
+import { setEventId } from '../services/localDB'
 
 export const useTerminalStore = create(
   persist(
@@ -30,6 +31,7 @@ export const useTerminalStore = create(
         try {
           const { data } = await api.get('/api/events/active')
           set({ eventId: data.id, eventSalt: data.salt, loadingEvent: false })
+          await setEventId(data.id)
           console.log(`Evento detectado: ${data.name} (${data.id})`)
         } catch {
           set({ loadingEvent: false })
