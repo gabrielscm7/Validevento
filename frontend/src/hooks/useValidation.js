@@ -28,6 +28,35 @@ export function useValidation() {
   const { eventId, terminalId } = useTerminalStore()
   const { user } = useAuthStore()
 
+  const lookupTicketCode = useCallback(async (ticketCode) => {
+    const code = ticketCode.trim().toLowerCase()
+    try {
+      if (navigator.onLine) {
+        const { data } = await api.get('/api/validation/lookup', {
+          params: { code, event_id: eventId }
+        })
+        return data
+      }
+
+      const ticket = await db.tickets
+        .where('ticket_code').equals(code)
+        .and((t) => t.event_id === eventId)
+        .first()
+
+      if (!ticket) return { status: RESULT.NOT_FOUND }
+      return {
+        status: ticket.status,
+        ticket_code: ticket.ticket_code,
+        display_name: ticket.display_name,
+        batch: ticket.batch,
+        first_entry_at: ticket.validated_at
+      }
+    } catch (err) {
+      console.error('Erro na consulta:', err)
+      return { status: RESULT.ERROR, reason: err.message }
+    }
+  }, [eventId])
+
   const processPendingVerifications = useCallback(async () => {
     if (!navigator.onLine) return
     const pending = loadPendingVerification()
@@ -168,5 +197,5 @@ export function useValidation() {
     }
   }, [eventId, terminalId, user])
 
-  return { validateTicketCode, validateManual }
+  return { lookupTicketCode, validateTicketCode, validateManual }
 }

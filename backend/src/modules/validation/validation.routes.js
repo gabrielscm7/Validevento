@@ -7,6 +7,9 @@ const router = express.Router();
 // Todas as rotas de validação requerem autenticação (validador, supervisor ou admin)
 router.use(authMiddleware);
 
+// GET /api/validation/lookup
+router.get('/lookup', validationController.lookup);
+
 // POST /api/validation/qrcode
 router.post('/qrcode', validationController.validateQRCode);
 

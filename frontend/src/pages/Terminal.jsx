@@ -9,6 +9,7 @@ import { QRScanner }         from '../components/QRScanner'
 import { ElginScanner }      from '../components/ElginScanner'
 import { SearchPanel }       from '../components/SearchPanel'
 import { ValidationResult }  from '../components/ValidationResult'
+import { ConfirmationDialog } from '../components/ConfirmationDialog'
 import { SyncStatus }        from '../components/SyncStatus'
 import { ThemeToggle }       from '../components/ThemeToggle'
 
@@ -25,19 +26,40 @@ export default function Terminal() {
 
   useEffect(() => { initTerminal(); ensureEvent() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const { sync, isSyncing }   = useSync()
-  const { validateTicketCode }       = useValidation()
+  const { lookupTicketCode, validateTicketCode } = useValidation()
   const isOffline             = useOffline()
 
   const [method, setMethod]   = useState(null)
   const [result, setResult]   = useState(null)
   const [scanning, setScanning] = useState(true)
+  const [pendingTicket, setPendingTicket] = useState(null)
+  const [validating, setValidating] = useState(false)
 
   const handleScan = useCallback(async (text) => {
     if (!scanning) return
     setScanning(false)
-    const res = await validateTicketCode(text.trim().toLowerCase())
+    const ticket = await lookupTicketCode(text)
+
+    if (ticket.status === 'blocked' || ticket.status === 'not_found' || ticket.status === 'error') {
+      setResult(ticket)
+    } else {
+      setPendingTicket(ticket)
+    }
+  }, [scanning, lookupTicketCode])
+
+  const handleConfirm = useCallback(async () => {
+    if (!pendingTicket) return
+    setValidating(true)
+    const res = await validateTicketCode(pendingTicket.ticket_code)
+    setPendingTicket(null)
+    setValidating(false)
     setResult(res)
-  }, [scanning, validateTicketCode])
+  }, [pendingTicket, validateTicketCode])
+
+  const handleCancel = useCallback(() => {
+    setPendingTicket(null)
+    setScanning(true)
+  }, [])
 
   const handleDismiss = () => {
     setResult(null)
@@ -142,6 +164,14 @@ export default function Terminal() {
       </main>
 
       {result && <ValidationResult result={result} onDismiss={handleDismiss} />}
+      {pendingTicket && (
+        <ConfirmationDialog
+          ticket={pendingTicket}
+          loading={validating}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+        />
+      )}
 
       <footer className="py-2 text-center text-xs text-muted-foreground/60">
         {user?.name} · {user?.role}

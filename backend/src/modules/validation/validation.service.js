@@ -181,7 +181,35 @@ async function searchTickets(eventId, queryText) {
   return result.rows;
 }
 
+async function lookupTicket(eventId, ticketCode) {
+  const normalizedCode = ticketCode.trim().toLowerCase();
+  if (!isValidUUIDv4(normalizedCode)) {
+    return { status: 'not_found' };
+  }
+
+  const result = await db.query(
+    `SELECT ticket_code, display_name, batch, status, validated_at
+     FROM tickets
+     WHERE event_id = $1 AND LOWER(ticket_code) = $2`,
+    [eventId, normalizedCode]
+  );
+
+  if (result.rowCount === 0) {
+    return { status: 'not_found' };
+  }
+
+  const t = result.rows[0];
+  return {
+    status: t.status,
+    ticket_code: t.ticket_code,
+    display_name: t.display_name,
+    batch: t.batch,
+    first_entry_at: t.validated_at
+  };
+}
+
 module.exports = {
+  lookupTicket,
   validateQRCode,
   validateManual,
   searchTickets

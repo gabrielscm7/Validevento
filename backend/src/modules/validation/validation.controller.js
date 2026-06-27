@@ -1,5 +1,21 @@
 const validationService = require('./validation.service');
 
+async function lookup(req, res) {
+  try {
+    const { code, event_id } = req.query;
+
+    if (!code || !event_id) {
+      return res.status(400).json({ error: 'Parâmetros code e event_id são obrigatórios.' });
+    }
+
+    const result = await validationService.lookupTicket(event_id, code);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Erro na consulta do ticket:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
 async function validateQRCode(req, res) {
   try {
     const { ticket_code, event_id, terminal_id } = req.body;
@@ -69,6 +85,7 @@ async function search(req, res) {
 }
 
 module.exports = {
+  lookup,
   validateQRCode,
   validateManual,
   search
