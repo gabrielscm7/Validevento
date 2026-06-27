@@ -85,6 +85,12 @@ app.get('/api/health', async (req, res) => {
   return res.status(diagnostics.status === 'ok' ? 200 : 500).json(diagnostics);
 });
 
+// ── Desabilitar cache (304) nas rotas da API ──
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  next();
+});
+
 // ────────────────────────────────────────────────
 // Registrar Rotas da API
 // ────────────────────────────────────────────────
