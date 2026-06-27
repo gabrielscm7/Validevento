@@ -52,9 +52,10 @@ async function validateQRCode(eventId, terminalId, validatorId, ticketCode) {
       );
       await client.query('COMMIT');
       return {
-        status: 'duplicate',
+        status: 'authorized',
         ticket_code: ticket.ticket_code,
         display_name: ticket.display_name,
+        batch: ticket.batch,
         first_entry_at: ticket.validated_at
       };
     }
@@ -125,9 +126,10 @@ async function validateManual(eventId, terminalId, validatorId, ticketId) {
       );
       await client.query('COMMIT');
       return {
-        status: 'duplicate',
+        status: 'authorized',
         ticket_code: ticket.ticket_code,
         display_name: ticket.display_name,
+        batch: ticket.batch,
         first_entry_at: ticket.validated_at
       };
     }

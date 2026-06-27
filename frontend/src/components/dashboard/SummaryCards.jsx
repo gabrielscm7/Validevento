@@ -1,7 +1,7 @@
 const CARDS = [
   { key: 'total',     label: 'Total',         bg: 'bg-muted', icon: '📋' },
   { key: 'active',    label: 'Ativos',        bg: 'bg-blue-50 dark:bg-blue-500/10', icon: '🔗' },
-  { key: 'validated', label: 'Validados',     bg: 'bg-emerald-50 dark:bg-emerald-500/10', icon: '✅' },
+  { key: 'validated', label: 'Entradas',      bg: 'bg-emerald-50 dark:bg-emerald-500/10', icon: '👥' },
   { key: 'blocked',   label: 'Bloqueados',    bg: 'bg-red-50 dark:bg-red-500/10', icon: '🚫' },
 ]
 

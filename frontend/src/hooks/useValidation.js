@@ -120,10 +120,23 @@ export function useValidation() {
       }
       if (ticket.status === 'blocked')   return { status: RESULT.BLOCKED, ticket_code: ticket.ticket_code }
       if (ticket.status === 'validated') {
+        await db.entry_logs.add({
+          id:           crypto.randomUUID(),
+          ticket_id:    ticket.id,
+          event_id:     eventId,
+          entry_type:   'qrcode',
+          terminal_id:  terminalId,
+          validator_id: user?.id,
+          is_duplicate: true,
+          synced:       0,
+          created_at:   new Date().toISOString(),
+        })
         return {
-          status:       RESULT.DUPLICATE,
-          ticket_code:  ticket.ticket_code,
-          display_name: ticket.display_name,
+          status:         RESULT.AUTHORIZED,
+          ticket_code:    ticket.ticket_code,
+          display_name:   ticket.display_name,
+          batch:          ticket.batch,
+          first_entry_at: ticket.validated_at,
         }
       }
 
@@ -168,7 +181,24 @@ export function useValidation() {
       const ticket = await db.tickets.get(ticketId)
       if (!ticket) return { status: RESULT.NOT_FOUND }
       if (ticket.status === 'validated') {
-        return { status: RESULT.DUPLICATE, ticket_code: ticket.ticket_code, display_name: ticket.display_name }
+        await db.entry_logs.add({
+          id:           crypto.randomUUID(),
+          ticket_id:    ticket.id,
+          event_id:     eventId,
+          entry_type:   'manual',
+          terminal_id:  terminalId,
+          validator_id: user?.id,
+          is_duplicate: true,
+          synced:       0,
+          created_at:   new Date().toISOString(),
+        })
+        return {
+          status:         RESULT.AUTHORIZED,
+          ticket_code:    ticket.ticket_code,
+          display_name:   ticket.display_name,
+          batch:          ticket.batch,
+          first_entry_at: ticket.validated_at,
+        }
       }
       if (ticket.status === 'blocked') return { status: RESULT.BLOCKED }
 

@@ -26,7 +26,7 @@ export function BatchTable({ data, loading }) {
               <tr className="text-muted-foreground text-xs uppercase tracking-wide">
                 <th className="text-left pb-2 font-medium">Lote</th>
                 <th className="text-right pb-2 font-medium">Total</th>
-                <th className="text-right pb-2 font-medium">Validados</th>
+                <th className="text-right pb-2 font-medium">Entradas</th>
                 <th className="text-right pb-2 font-medium">%</th>
               </tr>
             </thead>

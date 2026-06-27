@@ -1,10 +1,9 @@
 const db = require('../../config/database');
 
 async function getSummary(eventId) {
-  const result = await db.query(
+  const ticketStats = await db.query(
     `SELECT
        COUNT(*)::integer as total,
-       COUNT(CASE WHEN status = 'validated' THEN 1 END)::integer as validated,
        COUNT(CASE WHEN status = 'active' THEN 1 END)::integer as active,
        COUNT(CASE WHEN status = 'blocked' THEN 1 END)::integer as blocked
      FROM tickets
@@ -12,24 +11,34 @@ async function getSummary(eventId) {
     [eventId]
   );
 
-  const summary = result.rows[0];
-  return summary;
+  const entryStats = await db.query(
+    `SELECT COUNT(*)::integer as entries
+     FROM entry_logs
+     WHERE event_id = $1`,
+    [eventId]
+  );
+
+  return {
+    ...ticketStats.rows[0],
+    validated: entryStats.rows[0].entries
+  };
 }
 
 async function getBatches(eventId) {
   const result = await db.query(
     `SELECT
-       batch,
-       COUNT(*)::integer as total,
-       COUNT(CASE WHEN status = 'validated' THEN 1 END)::integer as validated,
+       t.batch,
+       COUNT(DISTINCT t.id)::integer as total,
+       COUNT(l.id)::integer as validated,
        CASE
-         WHEN COUNT(*) > 0 THEN ROUND((COUNT(CASE WHEN status = 'validated' THEN 1 END)::numeric / COUNT(*)::numeric) * 100.0, 2)::float
+         WHEN COUNT(DISTINCT t.id) > 0 THEN ROUND((COUNT(l.id)::numeric / COUNT(DISTINCT t.id)::numeric) * 100.0, 2)::float
          ELSE 0.0
        END as occupancy_percentage
-     FROM tickets
-     WHERE event_id = $1
-     GROUP BY batch
-     ORDER BY batch`,
+     FROM tickets t
+     LEFT JOIN entry_logs l ON l.ticket_id = t.id AND l.event_id = t.event_id
+     WHERE t.event_id = $1
+     GROUP BY t.batch
+     ORDER BY t.batch`,
     [eventId]
   );
   return result.rows;
@@ -38,10 +47,10 @@ async function getBatches(eventId) {
 async function getFlow(eventId) {
   const result = await db.query(
     `SELECT
-       TO_CHAR(validated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:00') as hour,
+       TO_CHAR(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:00') as hour,
        COUNT(*)::integer as count
-     FROM tickets
-     WHERE event_id = $1 AND status = 'validated' AND validated_at IS NOT NULL
+     FROM entry_logs
+     WHERE event_id = $1
      GROUP BY hour
      ORDER BY hour ASC`,
     [eventId]

@@ -5,7 +5,7 @@ function formatDateTime(isoStr) {
 
 const CONFIG = {
   active:    { bg: 'bg-emerald-600', emoji: '🎟️', title: 'Confirmar Validação',   btn: 'Confirmar Entrada', btnCls: 'bg-white text-emerald-700 hover:bg-emerald-50' },
-  validated: { bg: 'bg-amber-500',   emoji: '⚠️', title: 'Ingresso Já Validado',  btn: 'Registrar Reentrada', btnCls: 'bg-white text-amber-700 hover:bg-amber-50' },
+  validated: { bg: 'bg-amber-500',   emoji: '⚠️', title: 'Ingresso Já Validado',  btn: 'Registrar Entrada', btnCls: 'bg-white text-amber-700 hover:bg-amber-50' },
   blocked:   { bg: 'bg-red-600',     emoji: '🚫', title: 'Ingresso Bloqueado',    btn: null },
   not_found: { bg: 'bg-slate-700',   emoji: '❓', title: 'Não Encontrado',        btn: null },
 }
