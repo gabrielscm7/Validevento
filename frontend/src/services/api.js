@@ -1,9 +1,11 @@
 import axios from 'axios'
 import { useAuthStore } from '../store/authStore'
 
+const API_BASE = import.meta.env.VITE_API_URL || 'https://backend-production-9738e.up.railway.app'
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
-  timeout: 8000,
+  baseURL: API_BASE,
+  timeout: 15000,
 })
 
 // Injeta token JWT em toda requisição autenticada
