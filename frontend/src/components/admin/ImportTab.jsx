@@ -79,7 +79,6 @@ export default function ImportTab({ eventId }) {
 
     try {
       const { data } = await api.post('/api/import/csv', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (e) => {
           if (e.total) setUploadProgress(Math.round((e.loaded / e.total) * 100))
         },
