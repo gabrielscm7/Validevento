@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
-import { join, extname } from 'node:path'
+import { join, extname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -33,7 +33,20 @@ createServer(async (req, res) => {
     }
 
     const ext = extname(filePath)
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'text/plain' })
+    const base = basename(filePath)
+
+    // HTML e service worker: nunca em cache (força atualização)
+    const noCache = ext === '.html' || base === 'registerSW.js' || base === 'sw.js'
+
+    const headers = { 'Content-Type': MIME[ext] || 'text/plain' }
+
+    if (noCache) {
+      headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    } else {
+      headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    }
+
+    res.writeHead(200, headers)
     res.end(data)
   } catch {
     res.writeHead(500)
