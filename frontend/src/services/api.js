@@ -12,10 +12,6 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('ve_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
-  if (!config.headers['Cache-Control']) {
-    config.headers['Cache-Control'] = 'no-cache'
-    config.headers['Pragma'] = 'no-cache'
-  }
   return config
 })
 

@@ -44,9 +44,7 @@ export const useTerminalStore = create(
         if (get().loadingEvent) return
         set({ loadingEvent: true })
         try {
-          const response = await api.get('/api/events/active', {
-            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
-          })
+          const response = await api.get('/api/events/active')
           const event = response.data
           if (event && event.id) {
             set({ eventId: event.id, loadingEvent: false })

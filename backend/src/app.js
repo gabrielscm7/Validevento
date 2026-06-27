@@ -50,7 +50,7 @@ app.use(generalLimiter);
 const corsOptions = {
   origin: env.corsOrigin === '*' ? '*' : env.corsOrigin.split(',').map((s) => s.trim()),
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma'],
   credentials: true,
   maxAge: 86400,
 };
