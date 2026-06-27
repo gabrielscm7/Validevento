@@ -1,5 +1,48 @@
 # Changelog — Validevento
 
+## v2.0.0 — 2026-06-27 · Concorrência e Resiliência
+
+### Resumo
+
+Correção do erro crítico 500 ao validar QRCode (`entry_logs_terminal_id_fkey`) e implementação de row-level locking para suportar validações simultâneas sem duplicatas. O sistema agora tolera terminais desconhecidos e garante atomicidade em ambientes multi-terminal.
+
+---
+
+### 🐛 Bugs Corrigidos
+
+#### CRÍTICO: Erro 500 "Request failed with status code 500" ao validar QRCode
+- **Sintoma**: Tela vermelha com "ERRO" e mensagem `Request failed with status code 500` ao escanear qualquer QRCode pelo terminal
+- **Causa raiz**: O frontend gera um UUID v4 para o terminal (`crypto.randomUUID()`) e envia como `terminal_id` na requisição de validação. Esse UUID nunca era registrado na tabela `terminals` do PostgreSQL antes da validação. Ao inserir o `entry_log` com `terminal_id` desconhecido, a foreign key `entry_logs_terminal_id_fkey` rejeitava a operação → PostgreSQL retornava erro → controller respondia HTTP 500
+- **Correção**: Função `ensureTerminal()` adicionada em `validation.service.js` — faz UPSERT automático do terminal (`INSERT ... ON CONFLICT (id) DO UPDATE`) antes de qualquer `entry_log` ser inserido. Se o `terminal_id` não for um UUID válido ou for `null`, envia `NULL` (não viola FK). Mesma correção aplicada em `sync.service.js` para o endpoint `/api/sync/logs`
+- **Arquivos**: `validation.service.js:4-15,45,69`, `sync.service.js:27-43`
+
+#### ALTO: Race condition — ingresso validado duas vezes em chamadas simultâneas
+- **Sintoma**: Dois terminais validando o mesmo ticket ao mesmo tempo retornavam `authorized` para ambos
+- **Causa raiz**: A query `SELECT ... FROM tickets WHERE ...` no `validation.service.js` não travava a linha. Com duas transações concorrentes, ambas liam `status = 'active'` antes de qualquer uma executar `UPDATE`, resultando em duas entradas autorizadas para o mesmo ingresso
+- **Correção**: Adicionada cláusula `FOR UPDATE` nas queries `SELECT` de `validateQRCode()` e `validateManual()`. O PostgreSQL agora trava a linha do ticket no início da transação, forçando a segunda requisição a aguardar o `COMMIT` da primeira — ao ler novamente, o status já estará `validated` e retornará `duplicate`
+- **Arquivo**: `validation.service.js:31,101`
+
+---
+
+### 🔧 Melhorias de Infraestrutura
+
+#### Pool de conexões
+- PostgreSQL `max: 20` conexões no pool suporta até 20 validações simultâneas
+- Cada validação usa `pool.connect()` → `BEGIN` → operações → `COMMIT`/`ROLLBACK` → `client.release()`, garantindo isolamento por transação
+
+---
+
+### 📊 Testes Realizados
+
+| Cenário | Resultado |
+|---------|-----------|
+| QRCode válido, terminal novo (nunca registrado) | `authorized` ✅ |
+| QRCode inválido (não UUID v4) | `not_found` (200, sem erro) |
+| 2 terminais validando mesmo ticket simultaneamente | A: `authorized`, B: `duplicate` ✅ |
+| Terminal já registrado (re-validação) | `duplicate` com `first_entry_at` ✅ |
+
+---
+
 ## v1.1.0 — 2026-06-27 · Produção (Railway)
 
 ### Resumo
