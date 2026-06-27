@@ -6,6 +6,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'https://backend-production-973
 const api = axios.create({
   baseURL: API_BASE,
   timeout: 15000,
+  validateStatus: (status) => (status >= 200 && status < 300) || status === 304,
 })
 
 // Injeta token JWT em toda requisição autenticada
