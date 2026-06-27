@@ -18,6 +18,9 @@ const batchesRoutes    = require('./modules/batches/batches.routes');
 
 const app = express();
 
+// ── Trust proxy (obrigatorio atras do Railway/Caddy) ──
+app.set('trust proxy', 1);
+
 // ── Security headers (Helmet) ──
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
