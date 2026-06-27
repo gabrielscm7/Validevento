@@ -26,6 +26,20 @@ async function processOfflineLogs(eventId, terminalId, validatorId, logs) {
   const processedLogs = [];
   const errors = [];
 
+  if (terminalId) {
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (isUUID.test(terminalId)) {
+      try {
+        await db.query(
+          `INSERT INTO terminals (id, event_id, name, last_seen_at, online)
+           VALUES ($1, $2, 'Terminal Móvel', NOW(), true)
+           ON CONFLICT (id) DO UPDATE SET last_seen_at = NOW(), online = true`,
+          [terminalId, eventId]
+        );
+      } catch { /* silencioso — terminal pode já existir */ }
+    }
+  }
+
   for (const log of logs) {
     const client = await db.pool.connect();
     try {
