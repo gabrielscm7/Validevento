@@ -71,15 +71,52 @@ function parseXLSX(filePath) {
 }
 
 /**
- * Normaliza um registro de qualquer formato para o schema interno
+ * Mapa de aliases case-insensitive para campos conhecidos.
+ * Chave = nome do campo em lowercase, valor = nome canônico interno.
+ */
+const FIELD_ALIASES = {
+  codigo: 'ticket_code',
+  nome: 'display_name',
+  código: 'ticket_code',
+  id_ingresso: 'ticket_code',
+  id: 'ticket_code',
+  code: 'ticket_code',
+  cpf: 'cpf',
+  hash_cpf: 'hash_cpf',
+  lote: 'batch',
+  batch_name: 'batch',
+  nome_exibicao: 'display_name',
+  name: 'display_name',
+};
+
+/**
+ * Normaliza as chaves de um registro raw para lowercase,
+ * aplicando aliases de campos conhecidos (ex: "Codigo" → ticket_code).
+ */
+function normalizeKeys(raw) {
+  const out = {};
+  for (const key of Object.keys(raw)) {
+    const lower = key.trim().toLowerCase();
+    const canonical = FIELD_ALIASES[lower] || lower;
+    if (out[canonical] === undefined || out[canonical] === '' || out[canonical] === null) {
+      out[canonical] = raw[key];
+    }
+  }
+  return out;
+}
+
+/**
+ * Normaliza um registro de qualquer formato para o schema interno.
+ * Campos ausentes recebem valores padrão.
  */
 function normalizeRecord(raw) {
-  const ticketCode = raw.ticket_code || raw.id_ingresso || raw.code || raw.id || '';
-  const batch      = raw.batch || raw.lote || raw.batch_name || 'IMPORTADO';
-  const rawCpf     = raw.cpf || raw.CPF || raw.cpf_raw || null;
-  const hashCpfField = raw.hash_cpf || null;
-  const displayName = raw.display_name || raw.nome_exibicao || raw.name || raw.nome || null;
-  const status      = (raw.status || 'linked').toLowerCase();
+  const r = normalizeKeys(raw);
+  const ticketCode   = r.ticket_code || '';
+  const batch        = r.batch || 'LOTE-01';
+  const rawCpf       = r.cpf || null;
+  const hashCpfField = r.hash_cpf || null;
+  const displayName  = r.display_name || null;
+  const status       = (r.status || 'generated').toLowerCase();
   return { ticketCode, batch, rawCpf, hashCpfField, displayName, status };
 }
 
