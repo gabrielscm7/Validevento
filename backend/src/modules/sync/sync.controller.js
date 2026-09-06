@@ -1,75 +1,100 @@
 const syncService = require('./sync.service');
 
+function sendError(res, error) {
+  return res.status(error.status || 500).json({ error: error.message });
+}
+
 /**
- * Endpoint para obter instantâneo incremental de ingressos
+ * GET /api/sync/snapshot?event_id=X&since=ISO&terminal_id=Y
+ * Snapshot incremental (todos os tickets ou apenas os alterados desde `since`),
+ * incluindo event_config e master_ticket.
  */
 async function getSnapshot(req, res) {
   try {
-    const { event_id, since } = req.query;
+    const { event_id: eventId, since, terminal_id: terminalId } = req.query;
 
-    if (!event_id) {
+    if (!eventId) {
       return res.status(400).json({ error: 'event_id é obrigatório para obter snapshot.' });
     }
 
-    const snapshot = await syncService.getSnapshot(event_id, since, req.tenantId);
+    const snapshot = await syncService.getSnapshot(
+      eventId,
+      since,
+      req.tenantId,
+      terminalId
+    );
     return res.status(200).json(snapshot);
   } catch (error) {
     console.error('Erro ao obter snapshot:', error.message);
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error);
   }
 }
 
 /**
- * Endpoint para sincronizar logs de entrada ocorridos offline no terminal
+ * POST /api/sync/logs
+ * Persiste logs gerados offline no terminal. Idempotente.
  */
 async function syncLogs(req, res) {
   try {
-    const { event_id, terminal_id, logs } = req.body;
+    const { event_id: eventId, terminal_id: terminalId, logs } = req.body;
     const validatorId = req.user.id;
 
-    if (!event_id) {
+    if (!eventId) {
       return res.status(400).json({ error: 'event_id é obrigatório.' });
     }
-
     if (!logs || !Array.isArray(logs)) {
-      return res.status(400).json({ error: 'logs deve ser um array contendo os registros de entrada offline.' });
+      return res.status(400).json({
+        error: 'logs deve ser um array contendo os registros de entrada offline.',
+      });
     }
 
-    const result = await syncService.processOfflineLogs(event_id, terminal_id, validatorId, logs, req.tenantId);
-    
-    // Atualiza a data de última sincronização do terminal se for fornecido terminal_id
-    if (terminal_id) {
-      await syncService.registerHeartbeat(event_id, terminal_id);
-    }
+    const result = await syncService.processOfflineLogs(
+      eventId,
+      terminalId,
+      validatorId,
+      logs,
+      req.tenantId
+    );
 
     return res.status(200).json(result);
   } catch (error) {
     console.error('Erro ao sincronizar logs offline:', error.message);
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error);
   }
 }
 
 /**
- * Endpoint para registro de heartbeat de terminais
+ * POST /api/sync/heartbeat
+ * Atualiza o terminal (online) ou cria se não existir.
  */
 async function heartbeat(req, res) {
   try {
-    const { event_id, terminal_id, name } = req.body;
+    const { event_id: eventId, terminal_id: terminalId, name } = req.body;
 
-    if (!event_id) {
+    if (!eventId) {
       return res.status(400).json({ error: 'event_id é obrigatório para registrar heartbeat.' });
     }
 
-    const terminalUUID = await syncService.registerHeartbeat(event_id, terminal_id, name);
-    return res.status(200).json({ status: 'alive', terminal_id: terminalUUID });
+    const terminalUUID = await syncService.registerHeartbeat(
+      eventId,
+      terminalId,
+      name,
+      req.tenantId
+    );
+
+    return res.status(200).json({
+      ok: true,
+      server_time: new Date(),
+      terminal_id: terminalUUID,
+    });
   } catch (error) {
     console.error('Erro no heartbeat do terminal:', error.message);
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error);
   }
 }
 
 module.exports = {
   getSnapshot,
   syncLogs,
-  heartbeat
+  heartbeat,
 };

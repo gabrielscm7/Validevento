@@ -22,6 +22,7 @@ const eventTeamRoutes    = require('./modules/event-team/event-team.routes');
 const ticketsRoutes      = require('./modules/tickets/tickets.routes');
 const invitationsRoutes  = require('./modules/invitations/invitations.routes');
 const gatesRoutes        = require('./modules/gates/gates.routes');
+const syncService        = require('./modules/sync/sync.service');
 
 const app = express();
 
@@ -176,6 +177,17 @@ if (require.main === module) {
       );
     });
   });
+
+  // Monitor de terminais offline — marca offline terminais sem heartbeat
+  // nos últimos 3 minutos. Executa a cada 2 minutos (apenas em servidor real,
+  // nunca quando o app é importado por testes).
+  const tickOfflineMonitor = () => {
+    syncService.markOfflineTerminals().catch((err) => {
+      console.error('Falha no monitor de terminais offline:', err.message);
+    });
+  };
+  tickOfflineMonitor();
+  setInterval(tickOfflineMonitor, 2 * 60 * 1000);
 
   // Graceful shutdown
   function shutdown(signal) {
