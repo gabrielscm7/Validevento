@@ -8,16 +8,16 @@ terminais. Hierarquia **Master → Cliente (tenant) → Admin → Supervisor →
 Validador**. O login de usuários é feito por **CPF + senha** (nunca CPF em
 texto puro) com verificação de e-mail; o validador lê QRCode (câmera), faz
 busca manual (nome) ou usa leitor USB (Elgin EL250). Admin acompanha ocupação
-em dashboard em tempo real.
+em dashboard em tempo real; Supervisor opera portões, relatórios e o evento.
 
 ## 🛠️ Stack Tecnológica
 
 ### Backend
 | Componente | Versão |
 |---|---|
-| Node.js | 20 |
+| Node.js | 20+ |
 | Express | 4.19 |
-| PostgreSQL | 15 (Docker local / Supabase produção) |
+| PostgreSQL | 15+ (Docker local / Railway produção) |
 | JWT (jsonwebtoken) | 9.0 |
 | bcryptjs | 2.4 |
 | Resend | 6 |
@@ -30,25 +30,27 @@ em dashboard em tempo real.
 |---|---|
 | React | 19.2 |
 | Vite | 8 |
-| React Router DOM | 7.17 |
+| React Router DOM | 7.17 (API declarativa v6) |
 | Zustand | 5 (persist) |
 | Axios | 1.17 |
 | Dexie (IndexedDB) | 4.4 |
 | html5-qrcode | 2.3 |
-| Tailwind CSS | 3.4 |
-| shadcn/ui (base-ui) | — |
-| lucide-react | 1.20 |
 | recharts | 3.8 |
+| marked / qrcode.react | relatório MD + QRCode |
 | Vite PWA plugin | 1.3 |
 | Workbox | 7.4 |
+| **Estilo** | **CSS custom + tokens `--vv-*` (SEM Tailwind no frontend novo)** |
 
-### Infra
+### Infra (produção real)
 | Serviço | Função |
 |---|---|
-| Docker (PostgreSQL 15 Alpine) | Banco local dev |
-| Railway | Deploy backend |
-| Vercel | Deploy frontend |
-| Supabase | PostgreSQL gerenciado (produção) |
+| Railway (backend) | API `https://backend-production-9738e.up.railway.app` |
+| Railway (frontend) | App `https://frontend-production-b15b.up.railway.app` |
+| Railway (Postgres) | Banco de produção |
+| Docker (PostgreSQL) | Banco local dev |
+
+> Nota: o PRD previa Vercel/Supabase, mas a infra real é **100% Railway**.
+> Não migrar sem pedido do usuário.
 
 ## 🔄 Modelo de identidade e validação (histórico + v2)
 
@@ -65,52 +67,65 @@ em dashboard em tempo real.
 - `cpf_hash` (bcrypt do CPF) é mantido como coluna de auditoria/redundância —
   não é usado no lookup e nunca é exposto.
 - E-mail usado apenas para verificação (ativação 48h) e recuperação de senha
-  (token 1h), enviados via Resend.
+  (token 1h), enviados via Resend. Rota de reenvio: `POST /api/auth/resend-verification`.
+- **`CPF_LOOKUP_SALT` é imutável** após a criação dos primeiros usuários — nunca
+  alterar em produção (quebraria todos os logins).
 
 ### Arquivos de utilidades
-- `backend/src/utils/hash.js` — recriado na v2 com `cpfLookupHash`,
-  `hashPassword` e `comparePassword`.
-- `backend/src/utils/email.js` — novo (wrapper Resend; suprime envio sem
-  `RESEND_API_KEY`, ex.: dev/testes).
+- `backend/src/utils/hash.js` — `cpfLookupHash`, `hashPassword`, `comparePassword`.
+- `backend/src/utils/email.js` — wrapper Resend; suprime envio sem
+  `RESEND_API_KEY`; link de ativação em `/ativar` e de recuperação em
+  `/recuperar-senha` (base `FRONTEND_URL`).
 
-### Migração de banco
-- Executar `backend/migrations/003_v2_schema.sql` em databases existentes
-  (backfill automático de registros legados para o "Cliente Legado v1").
+### Migrações de banco
+- `backend/migrations/`: `01_init_schema`, `02_batches`, `003_v2_schema`,
+  `03_uuid_only`, `004_phase2`, `005_audit_immutable`, `006_event_branding`.
+- Ordenadas por prefixo numérico no `run.js`; todas idempotentes.
+- `005_audit_immutable`: revoga `DELETE` em `audit_logs` (imutável).
+- `006_event_branding`: `banner_url`/`logo_url` em `events`.
 
 ## 🧠 Estado Atual do Projeto
 
 ### Implementado e operacional
 
-**Backend — REST (legado v1 + módulos v2 da Fase 1):**
-- Autenticação por **CPF + senha** com verificação de e-mail (roles: master, admin, supervisor, validator)
-  - `POST /api/auth/login`, `/verify-email`, `/forgot-password`, `/reset-password`, `GET /api/auth/me`
-- **Clientes (master only):** `GET/POST /api/clients`, `GET/PUT /api/clients/:id`, `PATCH .../suspend`, `PATCH .../activate`, `GET /api/clients/:id/usage`
-- **Usuários (admin/master):** criação por CPF com e-mail de ativação e controle de cotas por tenant (`POST /api/users`), listagem/edição/desativação
-- Importação multi-formato (CSV, JSON, XML, XLSX) com aceitação de MIME genérico de mobile (BUG-03)
-- Validação por QRCode (UUID v4) e manual — duplicata retorna `duplicate` com `first_entry_at` (BUG-01)
-- Busca de participantes por nome (ILIKE)
-- Sync offline: snapshot incremental + envio de logs + heartbeat
-- Dashboard completo (sumário, fluxo por hora, lotes, alertas, terminais, live feed, export CSV)
-- CRUD de lotes (admin) e cancelamento de ingressos
-- Reset de dados do evento
-- `GET /health` (keep-alive Railway)
-- Migrações versionadas (01_init_schema, 02_batches, 003_v2_schema, 03_uuid_only)
-- Seeds (master/admin/supervisor/validator + 10 tickets de teste com UUIDs)
-- Middlewares: JWT + tenant ativo (`tenant_suspended`), roles, `audit_logs`
-- Testes automatizados **Jest + Supertest** (19 testes: auth, clients, import, validation, quota)
+**Backend — REST v2 multi-tenant (Fases 1–3 + P5/P6):**
+- Autenticação por **CPF + senha** com verificação de e-mail e reenvio
+  (roles: master, admin, supervisor, validator):
+  `POST /api/auth/login`, `/verify-email`, `/forgot-password`,
+  `/reset-password`, `/resend-verification`, `GET /api/auth/me`.
+- **Clientes (master only):** CRUD + `PATCH .../suspend|activate` + `GET .../usage`.
+- **Usuários (admin/master):** criação por CPF com e-mail de ativação e
+  controle de cotas por tenant; listagem/edição/desativação.
+- **Eventos (admin/master):** CRUD multi-tenant com `event_config`,
+  `event_team`, lotes, ingressos, convites (master ticket/cortesia/liberação),
+  portões, status `draft|active|closed`; `banner_url`/`logo_url` por evento.
+- Importação multi-formato (CSV/JSON/XML/XLSX), validação QRCode/manual com
+  reentrada configurável e checkout, sync offline (snapshot/logs/heartbeat),
+  dashboard v2 por evento, relatórios MD/CSV/audit, monitor de terminais offline.
+- Log de auditoria imutável (`audit_logs`), isolamento por tenant.
+- `GET /health` e `GET /api/health` (keep-alive Railway).
+- Testes **Jest + Supertest**: 59 testes / 13 suítes.
 
-> ⚠️ **Frontend ainda é o da v1** (login email/senha, sem clientes/cotas).
-> A atualização para o fluxo v2 (login por CPF, painel Master, ativação de
-> e-mail) está prevista para as próximas fases.
+**Frontend — v2 completo (Fase 4):**
+- Identidade "VALIDE/VENTO" (paleta `#4A2368`/`#2E516B`, Montserrat + Inter),
+  tokens `--vv-*`, CSS custom (sem Tailwind).
+- Login por CPF, ativação de conta (`/ativar`), recuperação (`/recuperar-senha`),
+  rotas por perfil: Master (`/master/*`), Admin (`/admin/*`),
+  Supervisor (`/supervisor/:eventId/*`), Terminal PWA (`/terminal/:eventId`).
+- Master: clientes/cotas/uso; Admin: eventos, config, equipe, lotes, ingressos,
+  usuários; Supervisor: dashboard ao vivo, portões, relatórios MD/CSV.
+- Terminal mobile-first offline-first (scanner QR, busca manual, checkout,
+  ingresso master), PWA instalável (manifest + service worker).
+- Testes **Vitest**: 16 testes. Lint 0. Build + PWA OK.
 
 **Armazenamento local (IndexedDB com Dexie):**
-- Stores: tickets, entry_logs, meta
-- Sincronização automática a cada 60 min, ao reconectar, e sob demanda
-- Lógica offline-first: valida contra IndexedDB primeiro, fallback para API
+- Base `validevento_db` v2 (`tickets`, `entry_logs`, `meta`), sync automático a
+  cada 60 min, ao reconectar e sob demanda; merge protegido (não sobrescreve
+  `validated` local). `useValidation` valida offline-first.
 
 ## 📜 Regras de Ouro e Premissas (Constraints)
 
-1. **Validação por UUID v4** — QRCode contém o `ticket_code` (UUID v4), que é único no banco
+1. **Validação por UUID v4** — QRCode contém o `ticket_code` (UUID v4), único no banco
 2. **Logs imutáveis** — Entry logs e audit_logs não podem ser deletados ou alterados após criados
 3. **Offline-first** — Terminal deve funcionar sem internet; validação usa IndexedDB como fonte primária
 4. **Não sobrescrever validated** — CSV import e sync nunca atualizam registros com status `validated`
@@ -122,16 +137,15 @@ em dashboard em tempo real.
 10. **Login exige e-mail verificado** — usuário sem `email_verified` não autentica (`email_not_verified`)
 11. **Suspensão de cliente bloqueia o tenant** — login e requisições retornam `tenant_suspended` (403)
 12. **Cotas por tenant** — admin não cria usuário acima da cota configurada pelo master (`422 quota_exceeded`)
-13. **Variáveis sensíveis via env** — `RESEND_API_KEY`, `CPF_LOOKUP_SALT`, `JWT_SECRET`, `CORS_ORIGIN` nunca no código
+13. **Variáveis sensíveis via env** — `RESEND_API_KEY`, `CPF_LOOKUP_SALT`, `JWT_SECRET`, `CORS_ORIGIN`, `FRONTEND_URL` nunca no código
 
-## 🚀 Próximos Passos (Fases 2–4)
+## 🚀 Próximos passos / operação
 
-1. **Fase 2 — Gestão de evento e ingressos:** CRUD de eventos (multi-tenant),
-   `event_config`, designação de equipe (`event_team`), lotes, ingresso master
-   e convites avulsos/liberação em lista.
-2. **Fase 3 — Operação e checkout:** lógica `reentry_mode`, `validation/checkout`,
-   portões (`gates`), terminal offline com config do evento no IndexedDB.
-3. **Fase 4 — Relatórios e auditoria:** relatório Markdown, export CSV e
-   consulta do `audit_logs`.
-4. **Frontend v2:** login por CPF, ativação de e-mail, painel Master
-   (clientes/cotas), painel Admin e tela de portaria atualizada.
+- **Produção no ar** (v2.3.0): backend e frontend em Railway (branch `master`),
+  preDeploy roda apenas `npm run migrate` (seed removido — criar usuários via SQL).
+- **Pendências de produção** e status atual: ver
+  `Docs/HANDOFF-FASE4-PENDENCIAS.md` (tabela P1–P9) e
+  `Docs/CHECKLIST-DEPLOY-v2.md`.
+- Ideias futuras (não iniciadas): upload real de banner/logo (hoje aceita URL),
+  endpoint global de auditoria por cliente, métricas de velocidade por terminal
+  no frontend, testes de carga no terminal.
