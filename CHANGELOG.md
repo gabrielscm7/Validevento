@@ -1,5 +1,62 @@
 # Changelog — Validevento
 
+## v2.3.0 — SaaS multi-tenant · Fase 4 — Frontend completo Validevento UI (2026-09-06)
+
+### Resumo
+
+Frontend completo da v2 com nova identidade visual ("VALIDE"/"VENTO", paleta
+`#4A2368`/`#2E516B`, Montserrat + Inter) e roteamento por perfil
+(Master → Admin → Supervisor → Validador). Substitui as páginas legadas v1,
+mantendo os hooks/stores/services da Fase 3. Acompanha o checklist de deploy
+em `Docs/CHECKLIST-DEPLOY-v2.md`.
+
+### 🎨 Identidade e fundação (Parte A)
+
+- Tokens CSS `--vv-*` no `index.css` (sem Tailwind no novo frontend).
+- `Logo`, `TopBar` e `PrivateRoute` (home por perfil + redirecionamento por
+  perfil insuficiente).
+- Rotas: autenticação, `/master/*`, `/admin/*`, `/supervisor/:eventId/*`,
+  `/terminal/:eventId`. `main.jsx` valida sessão com `GET /api/auth/me`.
+
+### 🔐 Autenticação (Parte B)
+
+- `Login` em duas colunas com partículas animadas, máscara de CPF e mensagens
+  de erro específicas (`email_not_verified`, `tenant_suspended`, …).
+- `ActivateAccount` (cria senha pós-convite) e `ResetPassword` (2 passos).
+
+### 🧑‍💼 Master (Parte C) · Admin (Parte D) · Supervisor (Parte E)
+
+- Master: dashboard com métricas reais, gestão de clientes/cotas e detalhe com
+  abas (uso vs cotas, usuários, eventos, auditoria).
+- Admin: home, eventos (lista/card com ocupação), formulário (cria/edita),
+  configuração (validação/check-in/relatórios), equipe, lotes, ingressos
+  (filtros, paginação, bloquear/desbloquear) e usuários (convite por CPF).
+- Supervisor: dashboard ao vivo (resumo, fluxo, lotes, terminais, feed, alertas,
+  velocidade) com polling de 30s, portões e relatórios (MD/CSV, preview e
+  gerador de convite com QRCode).
+
+### 📱 Terminal (Parte F) · PWA (Parte G)
+
+- Terminal escuro mobile-first fullscreen: scanner QR, resultado visual/sonoro
+  (Web Audio), busca manual com debounce, checkout e ingresso master.
+- PWA instalável (`manifest.json`, ícones 192/512 gerados, service worker com
+  cache `NetworkFirst` de API).
+
+### 🧪 Testes (Parte H)
+
+- Vitest + Testing Library: `auth`, `validation`, `offline`, `dashboard` e
+  `terminal` (16 testes) com mocks de API/IndexedDB/Web Audio.
+
+### ⚠️ Pendências para produção (ver `Docs/CHECKLIST-DEPLOY-v2.md`)
+
+- Deploy do backend no Railway está FAILED (pré-existente) e a branch local
+  ainda não foi enviada (`git push`).
+- Definir `RESEND_API_KEY` e `CPF_LOOKUP_SALT` no backend em produção.
+- `banner_url`/`logo_url` exigem migration no backend para personalização por
+  evento (frontend usa fallback da identidade padrão enquanto não existirem).
+
+---
+
 ## v2.2.0 — Multi-tenant SaaS · Fase 3 — Operação, sync offline, dashboard e relatórios (2026-09-06)
 
 ### Resumo
