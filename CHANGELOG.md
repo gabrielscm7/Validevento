@@ -1,6 +1,89 @@
 # Changelog — Validevento
 
-## v2.0.0 — 2026-06-27 · Concorrência e Resiliência
+## v2.0.0 — Multi-tenant SaaS · Fase 1 — Fundação multi-tenant (2026-09-05)
+
+> **Nota de versionamento:** a antiga versão `v2.0.0` (linha legada — portaria
+> de **evento único**) foi renomeada para **`v2.0.0-beta`** — ver seção abaixo.
+> A partir desta data, `v2.0.0` designa o **SaaS multi-tenant** descrito em
+> `Docs/PRD-validevento-v2.md` e `Docs/SPEC-validevento-v2.md`.
+
+### Resumo
+
+Evolução do validador de portaria de uso próprio para um SaaS multi-tenant:
+correções obrigatórias da v1 (BUG-01 a BUG-05), schema v2 (tenants,
+configuração de evento, equipe, portões, ingresso master e auditoria), módulo
+de clientes (master only), autenticação por CPF com verificação de e-mail e
+isolamento por tenant em todas as queries.
+
+### 🐛 Correções da v1 (obrigatórias)
+
+- **BUG-01** — `validation.service.js`: segunda validação de um ingresso já
+  `validated` retornava `authorized`. Corrigido para retornar
+  `{ status: 'duplicate', first_entry_at }` (fluxos QRCode e manual).
+- **BUG-02** — CORS: origem passa a vir de `CORS_ORIGIN`; remoção do fallback
+  `*` em produção (`env.js` e `.env.example`).
+- **BUG-03** — Importação aceita MIME genérico de browsers mobile
+  (`text/plain`, `application/octet-stream`) quando a extensão do arquivo é
+  válida (`.csv/.xlsx/.xls/.json/.xml`).
+- **BUG-05** — `docker-compose.yml`: ambiente dev completo (db com healthcheck
+  + backend `:3000` + frontend `:5173`) com hot-reload por volumes.
+
+### 🗄️ Banco de dados (migration `backend/migrations/003_v2_schema.sql`)
+
+- Novas tabelas: `clients`, `event_config`, `event_team`, `gates`,
+  `master_tickets`, `audit_logs`.
+- Colunas adicionadas:
+  - `users`: `tenant_id` (nullable p/ master), `cpf_hash`, `cpf_lookup_hash`
+    (UNIQUE), `email_verified`, `email_token`, `email_token_exp`; `password_hash`
+    deixou de ser NOT NULL (ativação por e-mail).
+  - `events`: `tenant_id`, `expected_start`, `responsible[]`, `status`.
+  - `tickets`: `tenant_id`, `origin`, `checkout_at`.
+  - `entry_logs`: `tenant_id`, `checkout_at`.
+- Índices de tenant/busca conforme SPEC seção 2.2.
+- **Backfill automático**: registros legados da v1 são vinculados ao cliente
+  "Cliente Legado v1" (`legado@validevento.com`) antes da aplicação de
+  `tenant_id NOT NULL`.
+- `run.js` passou a ordenar migrations por prefixo numérico
+  (`01 → 02 → 003 → 03`).
+
+### ✨ Novo: Módulo de Clientes (master only)
+
+- `GET/POST /api/clients`, `GET/PUT /api/clients/:id`,
+  `PATCH /api/clients/:id/suspend`, `PATCH /api/clients/:id/activate` e
+  `GET /api/clients/:id/usage` (uso atual vs. cotas).
+- Suspensão bloqueia o login de todos os usuários do tenant imediatamente.
+
+### 🔐 Novo: Autenticação por CPF + verificação de e-mail
+
+- `POST /api/auth/login` com CPF (com ou sem formatação) + senha; JWT com
+  validade de 24h. Lookup por `cpf_lookup_hash` (SHA-256 + salt).
+- Criação de usuário (`POST /api/users`) dispara e-mail de ativação via Resend
+  (token 48h); usuário nasce sem senha e sem `email_verified`.
+- `POST /api/auth/verify-email`, `POST /api/auth/forgot-password` e
+  `POST /api/auth/reset-password` (token de recuperação expira em 1h).
+- Controle de cotas por tenant (`422 quota_exceeded` com `used`/`max`).
+- Middlewares: verificação de tenant ativo a cada requisição autenticada
+  (`tenant_suspended`) e gravação em `audit_logs`.
+- Novos `utils/hash.js` (lookup + bcrypt 12) e `utils/email.js` (Resend).
+- Isolamento por `tenant_id` nas queries de validation, import e sync.
+
+### ⚙️ Outros
+
+- `GET /health` para keep-alive (Railway Hobby / cron-job.org).
+- `.env.example` com `RESEND_API_KEY`, `CPF_LOOKUP_SALT` e `FRONTEND_URL`.
+
+### 🧪 Testes
+
+- Testes automatizados com **Jest + Supertest** (19 testes/5 suítes):
+  `auth`, `clients`, `import` (inclui BUG-03), `validation` (inclui BUG-01) e
+  `quota`.
+
+---
+
+## v2.0.0-beta — 2026-06-27 · Concorrência e Resiliência (legado — evento único)
+
+> Renomeado de "v2.0.0". Pertence à linha **legada pré-SaaS** (portaria de
+> evento único), liberando `v2.0.0` para o SaaS multi-tenant.
 
 ### Resumo
 
