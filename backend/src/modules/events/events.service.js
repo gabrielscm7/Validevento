@@ -55,7 +55,9 @@ async function listEvents({ tenantId, isMaster, status, filterTenantId }) {
 }
 
 /** Cria evento + event_config padrão em transação. */
-async function createEvent({ tenantId, name, date, expectedStart, location, capacity, responsible, createdBy }) {
+async function createEvent({
+  tenantId, name, date, expectedStart, location, capacity, responsible, bannerUrl, logoUrl, createdBy,
+}) {
   if (!tenantId) {
     throw apiError(400, 'tenant_required', 'Evento precisa estar vinculado a um tenant.');
   }
@@ -72,10 +74,14 @@ async function createEvent({ tenantId, name, date, expectedStart, location, capa
 
     const eventRes = await client.query(
       `INSERT INTO events
-         (tenant_id, name, date, expected_start, location, capacity, responsible, status, active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', false)
+         (tenant_id, name, date, expected_start, location, capacity, responsible,
+          status, active, banner_url, logo_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', false, $8, $9)
        RETURNING *`,
-      [tenantId, name, date, expectedStart || null, location || null, finalCapacity, responsibleArr]
+      [
+        tenantId, name, date, expectedStart || null, location || null, finalCapacity, responsibleArr,
+        bannerUrl || null, logoUrl || null,
+      ]
     );
     const event = eventRes.rows[0];
 
@@ -157,7 +163,7 @@ async function updateEvent(eventId, fields) {
     throw apiError(422, 'event_closed', 'Evento encerrado é imutável.');
   }
 
-  const allowed = ['name', 'date', 'location', 'capacity', 'responsible'];
+  const allowed = ['name', 'date', 'location', 'capacity', 'responsible', 'banner_url', 'logo_url'];
   const updates = [];
   const params = [];
   let idx = 1;

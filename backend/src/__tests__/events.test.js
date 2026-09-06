@@ -114,4 +114,26 @@ describe('Gestão de eventos (Fase 2)', () => {
     expect(res.status).toBe(200);
     expect(res.body.id).toBe(event.id);
   });
+
+  test('T-events-5: banner_url/logo_url são persistidos no PUT e retornados no GET', async () => {
+    const event = await createEventViaApi('Festival Branding');
+
+    const upd = await api()
+      .put(`/api/events/${event.id}`)
+      .set(auth(adminToken))
+      .send({
+        banner_url: 'https://cdn.exemplo.com/festival/banner.jpg',
+        logo_url: 'https://cdn.exemplo.com/festival/logo.png',
+      });
+    expect(upd.status).toBe(200);
+    expect(upd.body.banner_url).toBe('https://cdn.exemplo.com/festival/banner.jpg');
+    expect(upd.body.logo_url).toBe('https://cdn.exemplo.com/festival/logo.png');
+
+    const res = await api()
+      .get(`/api/events/${event.id}`)
+      .set(auth(adminToken));
+    expect(res.status).toBe(200);
+    expect(res.body.banner_url).toBe('https://cdn.exemplo.com/festival/banner.jpg');
+    expect(res.body.logo_url).toBe('https://cdn.exemplo.com/festival/logo.png');
+  });
 });

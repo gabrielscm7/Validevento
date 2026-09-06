@@ -30,7 +30,7 @@ async function list(req, res) {
 // POST /api/events — cria evento vinculado ao tenant (admin/master)
 async function create(req, res) {
   try {
-    const { name, date, expected_start, location, capacity, responsible, tenant_id } = req.body;
+    const { name, date, expected_start, location, capacity, responsible, banner_url, logo_url, tenant_id } = req.body;
 
     // Master informa o tenant no corpo; admin usa o próprio tenant do JWT
     const tenantId = req.user.role === 'master' ? (tenant_id || req.tenantId) : req.tenantId;
@@ -43,6 +43,8 @@ async function create(req, res) {
       location,
       capacity,
       responsible,
+      bannerUrl: banner_url,
+      logoUrl: logo_url,
       createdBy: req.user.id,
     });
 
