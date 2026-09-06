@@ -49,6 +49,17 @@ async function resetPassword(req, res) {
   }
 }
 
+async function resendVerification(req, res) {
+  try {
+    const { email } = req.body;
+    const result = await authService.resendVerification(email);
+    return res.status(200).json(result);
+  } catch (error) {
+    const status = error.status || 500;
+    return res.status(status).json({ error: error.code || error.message });
+  }
+}
+
 /**
  * Retorna as informações do usuário atual baseado no token JWT
  */
@@ -74,6 +85,7 @@ module.exports = {
   verifyEmail,
   forgotPassword,
   resetPassword,
+  resendVerification,
   me,
   logout,
 };

@@ -145,4 +145,59 @@ describe('Autenticação com CPF (Parte D)', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_or_expired_token');
   });
+
+  test('T-email-3: resend-verification gera novo token e ativação passa a funcionar', async () => {
+    const client = await createClient();
+    await createUser({
+      tenant_id: client.id,
+      role: 'supervisor',
+      cpf: '14725836900',
+      email: 'resend-valid@teste.com',
+      password: null,
+      email_verified: false,
+    });
+
+    const res = await api()
+      .post('/api/auth/resend-verification')
+      .send({ email: 'RESEND-VALID@teste.com' }); // caixa alta: deve normalizar
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBeTruthy();
+
+    const tokenRes = await helpers.pool.query(
+      `SELECT email_token, email_token_exp FROM users WHERE email = $1`,
+      ['resend-valid@teste.com']
+    );
+    const newToken = tokenRes.rows[0].email_token;
+    expect(newToken).toBeTruthy();
+    expect(new Date(tokenRes.rows[0].email_token_exp).getTime()).toBeGreaterThan(Date.now());
+
+    // O novo token ativa a conta
+    const activate = await api()
+      .post('/api/auth/verify-email')
+      .send({ token: newToken, password: 'NovaSenhaResend1' });
+    expect(activate.status).toBe(200);
+  });
+
+  test('T-email-4: resend-verification de e-mail já verificado não gera token', async () => {
+    const client = await createClient();
+    await createUser({
+      tenant_id: client.id,
+      role: 'validator',
+      cpf: '15935725800',
+      email: 'ja-verificado@teste.com',
+      password: 'senha123',
+      email_verified: true,
+    });
+
+    const res = await api()
+      .post('/api/auth/resend-verification')
+      .send({ email: 'ja-verificado@teste.com' });
+    expect(res.status).toBe(200);
+
+    const tokenRes = await helpers.pool.query(
+      `SELECT email_token FROM users WHERE email = $1`,
+      ['ja-verificado@teste.com']
+    );
+    expect(tokenRes.rows[0].email_token).toBeNull();
+  });
 });

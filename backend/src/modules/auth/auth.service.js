@@ -193,6 +193,39 @@ async function resetPassword(token, password) {
   return { message: 'Senha redefinida com sucesso.' };
 }
 
+/**
+ * Reenvia o e-mail de ativação para usuário ainda não verificado.
+ * Gera novo email_token (TTL 48h). Resposta genérica para não revelar
+ * se o e-mail existe nem se já foi verificado.
+ */
+async function resendVerification(email) {
+  if (!email) {
+    throw httpError(400, 'E-mail é obrigatório.', 'missing_fields');
+  }
+
+  const result = await db.query(
+    `SELECT id, name, email, email_verified, active FROM users WHERE email = $1`,
+    [String(email).toLowerCase().trim()]
+  );
+
+  const user = result.rows[0];
+  if (user && user.active && !user.email_verified) {
+    const activationToken = crypto.randomBytes(32).toString('hex');
+    const exp = new Date(Date.now() + ACTIVATION_TTL_MS);
+
+    await db.query(
+      `UPDATE users SET email_token = $2, email_token_exp = $3 WHERE id = $1`,
+      [user.id, activationToken, exp]
+    );
+
+    await sendActivationEmail(user.email, user.name, activationToken);
+  }
+
+  return {
+    message: 'Se o e-mail estiver cadastrado e ainda não verificado, enviaremos um novo link de ativação.',
+  };
+}
+
 async function getById(id) {
   const result = await db.query(
     `SELECT id, name, email, role, tenant_id, email_verified, active, created_at
@@ -208,5 +241,6 @@ module.exports = {
   verifyEmail,
   forgotPassword,
   resetPassword,
+  resendVerification,
   getById,
 };

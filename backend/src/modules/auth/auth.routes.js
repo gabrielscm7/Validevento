@@ -16,6 +16,9 @@ router.post('/forgot-password', authController.forgotPassword);
 // POST /api/auth/reset-password — redefine senha via token
 router.post('/reset-password', authController.resetPassword);
 
+// POST /api/auth/resend-verification — reenvia e-mail de ativação
+router.post('/resend-verification', authController.resendVerification);
+
 // GET /api/auth/me
 router.get('/me', authMiddleware, authController.me);
 
