@@ -22,6 +22,12 @@ const app = express();
 // ── Trust proxy (obrigatorio atras do Railway/Caddy) ──
 app.set('trust proxy', 1);
 
+// ── Keep-alive (Railway Hobby suspende serviços inativos) ──
+// Registrado antes dos demais middlewares para não sofrer rate-limit/helmet.
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // ── Security headers (Helmet) ──
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
