@@ -25,9 +25,9 @@
 
 ### Git
 - Branch local: `master`
-- **AHEAD 31 commits** de `origin/master` (remoto parado em `a4da41c`)
+- **Enviada para `origin/master`** em 06/09/2026 (`a4da41c..29c1222` + docs posteriores)
 - Remote: `https://github.com/gabrielscm7/Validevento.git`
-- Último commit local: `7f0defa` (Parte I)
+- Últimos commits locais: pendências P1–P9 desta sessão (P5, P6, fix `/recuperar`, Agent.md, docs)
 
 ### Infra publicada (verificada via Railway MCP, env `production`)
 - Projeto Railway: `validevento` (`6b703342-…`) · workspace `gabrielscm7's Projects`
@@ -243,14 +243,14 @@ git push origin master
 
 | # | Pendência | Status | Observação |
 |---|---|---|---|
-| P1 | Deploy backend + push | TODO | — |
-| P2 | RESEND_API_KEY | TODO | — |
-| P3 | CPF_LOOKUP_SALT | TODO | — |
-| P4 | Migrations + master | TODO | — |
-| P5 | banner/logo no backend | TODO | Requer aval p/ backend |
-| P6 | resend-verification | TODO | Requer aval p/ backend |
-| P7 | Smoke test prod | TODO | — |
-| P8 | Atualizar Agent.md | TODO | — |
-| P9 | Revisões opcionais | TODO | — |
+| P1 | Deploy backend + push | DONE | Push `a4da41c..29c1222`; deploy backend `5c72fc3b` SUCCESS (runtime antes caía sem logs); frontend `e41cab83` SUCCESS; `/health` e `/api/health` → 200 |
+| P2 | RESEND_API_KEY | DONE | Definida no serviço backend (Railway); valor veio do usuário (não registrado) |
+| P3 | CPF_LOOKUP_SALT | DONE | Salt 96 hex gerado e guardado fora do repo (ver segredos de prod); definido antes de qualquer usuário v2 |
+| P4 | Migrations + master | DONE | Migrations 01→006 aplicadas (audit DELETE=false; `banner_url`/`logo_url` OK); master `gabrielscm@gmail.com` CPF `998.834.062-15` criado via SQL com o salt definitivo; login validado |
+| P5 | banner/logo no backend | DONE | Migration `006_event_branding.sql` + liberado em create/update (`events.service`/`events.controller`); teste `T-events-5`; suíte 59/59 |
+| P6 | resend-verification | DONE | `POST /api/auth/resend-verification` (token 48h, resposta genérica); testes `T-email-3/4`; suíte 59/59 |
+| P7 | Smoke test prod | IN PROGRESS | Login do master OK via API; itens de UI/browser pendem do usuário (ver Checklist §6) |
+| P8 | Atualizar Agent.md | DONE | `Agent.md` reescrito (frontend v2, infra Railway 100%, migrações até 006, testes 59/59) |
+| P9 | Revisões opcionais | IN PROGRESS | DONE: seed removido do preDeploy (só `migrate`) e `FRONTEND_URL` definida. PENDENTE: `CORS_ORIGIN='*'` em produção (BUG-02) e confirmar remetente Resend (`EMAIL_FROM`) |
 
 Status: TODO | IN PROGRESS | DONE | BLOCKED (razão em uma linha)

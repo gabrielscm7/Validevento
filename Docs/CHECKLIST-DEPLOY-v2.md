@@ -2,7 +2,7 @@
 
 **Data de execução:** 06/09/2026
 **Fase:** 4 de 4 (frontend completo) — concluída.
-**Status:** ✅ Frontend pronto (16 testes, build e lint OK) · 🟡 Deploy de produção requer ações manuais listadas abaixo.
+**Status:** ✅ Frontend pronto (16 testes, build e lint OK) · ✅ **Produção no ar** (backend e frontend deployados em `29c1222`; `/health` 200) · 🟡 Smoke test de UI pendente (passos manuais §6).
 
 ---
 
@@ -22,36 +22,32 @@
 
 **Estado real verificado via Railway MCP (projeto `validevento`, env `production`):**
 
-- Repositório: `gabrielscm7/Validevento`, branch `master`, root `backend`, RAILPACK, `preDeployCommand: npm run migrate && npm run seed`, start `node src/app.js`. ✅ config correta.
-- **⚠️ Deploy atual do backend está FAILED** (deployment `a581eb36`, 25/08, commit `a4da41c`). Build passa; falha ocorre no runtime (sem logs de deploy). **Pendência pré-existente, alheia à Fase 4.**
-- **⚠️ Branch local está 22 commits à frente de `origin/master`** e ainda não foi enviada (`git push`). O deploy publicado não contém as fases 1–3 nem este frontend.
-- Variáveis definidas no serviço backend: `CORS_ORIGIN`, `DATABASE_URL`, `JWT_EXPIRES_IN`, `JWT_SECRET`, `NODE_ENV`, `PORT` (6).
-  - ✅ `DATABASE_URL`, `JWT_SECRET`, `CORS_ORIGIN`, `PORT` presentes.
-  - ❌ **`RESEND_API_KEY` não está definida** → e-mails de ativação/recuperação falham silenciosamente em produção.
-  - ❌ **`CPF_LOOKUP_SALT` não está definida** → `cpfLookupHash` usará salt vazio; **obrigatório definir** para login por CPF (e nunca mudar depois).
-  - ⚠️ `FRONTEND_URL` não está definida (não é usada hoje pelo backend; o email usa link de ativação — conferir `backend/src/utils/email.js`). Recomenda-se definir.
+- Repositório: `gabrielscm7/Validevento`, branch `master`, root `backend`, RAILPACK, `preDeployCommand: npm run migrate` (seed removido em 06/09), start `node src/app.js`. ✅ config correta.
+- **✅ Deploy do backend SUCCESS** (deployment `5c72fc3b`, 06/09, commit `29c1222`). Migrations `01→006` aplicadas no banco de produção; `/health` e `/api/health` → 200.
+- **✅ Branch enviada** para `origin/master` (`a4da41c..29c1222`) — o deploy publicado agora contém as Fases 1–3, o frontend v2 e as pendências P5/P6.
+- Variáveis definidas no serviço backend: `CORS_ORIGIN`, `CPF_LOOKUP_SALT`, `DATABASE_URL`, `FRONTEND_URL`, `JWT_EXPIRES_IN`, `JWT_SECRET`, `NODE_ENV`, `PORT`, `RESEND_API_KEY` (9).
+  - ✅ `DATABASE_URL`, `JWT_SECRET`, `PORT`, `CPF_LOOKUP_SALT`, `RESEND_API_KEY`, `FRONTEND_URL` presentes.
+  - ⚠️ **`CORS_ORIGIN` está como `*` em produção** — viola o BUG-02 (origem explícita). Recomendado definir como `https://frontend-production-b15b.up.railway.app` (pendência P9).
+  - ⚠️ Confirmar remetente autorizado no Resend (`EMAIL_FROM` padrão `noreply@validevento.com` — domínio precisa estar verificado).
 
-> **Ação manual necessária:** definir `RESEND_API_KEY` e `CPF_LOOKUP_SALT` no serviço backend (Railway → Variables) e, após `git push origin master`, acionar novo deploy. Ex.: `CPF_LOOKUP_SALT=uma-string-aleatoria-longa-nunca-mudar`.
+> **Ações manuais realizadas em 06/09:** definidas `RESEND_API_KEY` e `CPF_LOOKUP_SALT` (gerado e guardado fora do repo) e `FRONTEND_URL` no serviço backend; `preDeployCommand` ajustado para rodar apenas `npm run migrate`; usuário master criado via SQL (ver §4); push + deploy.
 
 ---
 
 ## 2. Frontend (deploy)
 
-- Na infraestrutura real o frontend está publicado no **Railway** (serviço `frontend`, root `frontend`, RAILPACK, `buildCommand: npm run build`, `startCommand: npm start`) — **não** no Vercel como previa o PRD. Documentamos o estado real.
+- No Railway: serviço backend + frontend publicados em **`29c1222`** (06/09). Frontend no **Railway** (root `frontend`, RAILPACK, `buildCommand: npm run build`, `startCommand: npm start`).
   - ✅ `VITE_API_URL` definida no serviço frontend aponta para o backend Railway.
-  - ⚠️ O build publicado é de `a4da41c` (25/08); **requer novo deploy** após o push desta fase.
+  - ✅ Novo build publicado e respondendo HTTP 200.
 - Build local: ✅ sem erros. PWA: manifest + service worker gerados pelo `vite-plugin-pwa`; ícones `icon-192.png`/`icon-512.png` gerados via `npm run generate:icons`.
-- Teste PWA: instale a app pelo navegador (Android/desktop) e confira "instalável" no Lighthouse quando o novo build estiver no ar.
+- Teste PWA: instale a app pelo navegador (Android/desktop) e confira "instalável" no Lighthouse (pendente §6).
 
 ---
 
 ## 3. Keep-alive
 
 - ✅ `GET /health` existe no backend (`backend/src/app.js`).
-- 🟡 Health atual retorna **404** porque o deploy de produção está FAILED/antigo. Após deploy válido, confirmar 200 em:
-  ```
-  https://backend-production-9738e.up.railway.app/health
-  ```
+- ✅ Health retorna **200** no deploy atual (`/health` e `/api/health` com `database: connected`).
 - Cadastro sugerido no cron-job.org:
   - URL: `https://backend-production-9738e.up.railway.app/health`
   - Método: GET · Intervalo: 5 minutos
@@ -61,41 +57,37 @@
 
 ## 4. Banco de dados
 
-- Migrations existentes (confirmadas no repo): `001_initial_v1` (legado), `002_batches`, `003_v2_schema`, `004_phase2`, `005_audit_immutable` + `backend/src/migrations`.
-- O `preDeployCommand` roda `npm run migrate && npm run seed`. ⚠️ **Atenção:** em produção não execute `seed` cegamente se houver dados reais — confirme o comportamento do script antes.
-- **REVOKE DELETE ON audit_logs** — migration `005_audit_immutable.sql` aplica. Confirmar no banco:
+- Migrations aplicadas em produção em 06/09/2026 (deploy `29c1222`): `001_initial_v1`, `002_batches`, `003_v2_schema`, `004_phase2`, `005_audit_immutable`, `006_event_branding` + `backend/src/migrations`.
+- O `preDeployCommand` agora roda **apenas `npm run migrate`** (seed removido em 06/09 — usuários em produção são criados via SQL, nunca por seed automático).
+- **REVOKE DELETE ON audit_logs** — confirmado no banco de produção:
   ```sql
-  SELECT has_table_privilege('public', 'audit_logs', 'DELETE');  -- esperado false
+  SELECT has_table_privilege('public', 'audit_logs', 'DELETE');  -- false ✅
   ```
-- Criar usuário master inicial via SQL (somente se ainda não existir):
-  ```sql
-  INSERT INTO users (name, email, cpf_lookup_hash, email_verified, role, active)
-  VALUES ('Administrador Master', 'seu@email.com',
-          encode(digest('seu-cpf' || '<CPF_LOOKUP_SALT>', 'sha256'), 'hex'),
-          true, 'master', true);
-  ```
-  > Use exatamente o mesmo `CPF_LOOKUP_SALT` definido nas variáveis do backend.
+- Usuário master criado via SQL em 06/09 (com o `CPF_LOOKUP_SALT` definitivo):
+  - e-mail `gabrielscm@gmail.com` · CPF `998.834.062-15` · role `master` · `email_verified = true`
+  - login validado contra `/api/auth/login` → 200.
 
 ---
 
 ## 5. Pendências conhecidas / decisões desta fase
 
-1. **banner_url / logo_url**: o backend v2 **não possui** essas colunas em `events` nem endpoint de upload. Conforme combinado no início da Fase 4, o frontend lê `banner_url`/`logo_url` quando existirem no GET do evento e usa **fallback da identidade padrão**. Para ativar a personalização por evento, será necessária uma migration (`ALTER TABLE events ADD COLUMN IF NOT EXISTS banner_url TEXT, logo_url TEXT;`) + liberar esses campos no `events.service.updateEvent` — **fora do escopo "frontend-only"** desta fase.
-2. **Resend de ativação**: o SPEC lista `POST /api/auth/resend-verification`, mas o backend não o implementa. A tela `ActivateAccount` já trata o erro graciosamente (mensagem + orientação). Implementar no backend se desejado.
+1. **banner_url / logo_url** — ✅ **implementado** (06/09): migration `006_event_branding.sql` + liberado em `events.service.js` create/update. O frontend lê os campos no GET do evento e usa fallback da identidade padrão quando ausentes. Upload real de arquivo ainda não existe — hoje aceita URL externa (decisão da Parte A mantida).
+2. **Resend de ativação** — ✅ **implementado** (06/09): `POST /api/auth/resend-verification` (token novo 48h, resposta genérica). A tela `ActivateAccount` já consome o endpoint.
 3. **Dashboard do Master** usa dados reais dos endpoints existentes (`/api/clients`, `/api/clients/:id/usage`, `/api/events`, `/api/users`). Sem endpoint de auditoria global por cliente, a aba "Auditoria" do `ClientDetail` agrega `reports/audit` dos eventos do tenant.
+4. **Link de recuperação** — ✅ corrigido (06/09): e-mail aponta para `/recuperar-senha` (rota real do frontend), não mais `/recuperar`.
 
 ---
 
 ## 6. Smoke test em produção (passos manuais)
 
-Após `git push origin master` + deploy OK:
+Após `git push origin master` + deploy OK (ambos feitos em 06/09):
 
-1. Login com CPF do master → deve ir para `/master`.
-2. Criar cliente + definir cotas.
-3. Criar usuário admin do cliente → e-mail de ativação (requer `RESEND_API_KEY`).
-4. Criar evento + importar CSV de teste (lote).
-5. Abrir `/terminal/:eventId` no celular, instalar PWA e validar um ingresso (QR + busca manual).
-6. Conferir o log no dashboard/supervisor e gerar/baixar relatório Markdown e CSV.
+1. Login com CPF do master → deve ir para `/master`. ✅ **feito via API** (200, role master); falta confirmar no navegador a rota `/master`.
+2. Criar cliente + definir cotas. ⬜ navegador
+3. Criar usuário admin do cliente → e-mail de ativação (requer `RESEND_API_KEY` — definida). ⬜ navegador + conferir caixa de e-mail
+4. Criar evento + importar CSV de teste (lote). ⬜ navegador
+5. Abrir `/terminal/:eventId` no celular, instalar PWA e validar um ingresso (QR + busca manual). ⬜ navegador
+6. Conferir o log no dashboard/supervisor e gerar/baixar relatório Markdown e CSV. ⬜ navegador
 
 ---
 
