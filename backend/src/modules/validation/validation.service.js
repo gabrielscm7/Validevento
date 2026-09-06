@@ -45,6 +45,7 @@ async function validateQRCode(eventId, terminalId, validatorId, ticketCode) {
 
     const safeTerminalId = await ensureTerminal(client, eventId, terminalId);
     if (ticket.status === 'validated') {
+      // BUG-01: ingresso já validado (reentrada sem permissão) é DUPLICATA.
       await client.query(
         `INSERT INTO entry_logs (ticket_id, event_id, entry_type, terminal_id, validator_id, is_duplicate, synced)
          VALUES ($1, $2, 'qrcode', $3, $4, true, true)`,
@@ -52,10 +53,9 @@ async function validateQRCode(eventId, terminalId, validatorId, ticketCode) {
       );
       await client.query('COMMIT');
       return {
-        status: 'authorized',
+        status: 'duplicate',
         ticket_code: ticket.ticket_code,
         display_name: ticket.display_name,
-        batch: ticket.batch,
         first_entry_at: ticket.validated_at
       };
     }
@@ -119,6 +119,7 @@ async function validateManual(eventId, terminalId, validatorId, ticketId) {
     }
 
     if (ticket.status === 'validated') {
+      // BUG-01: ingresso já validado (reentrada sem permissão) é DUPLICATA.
       await client.query(
         `INSERT INTO entry_logs (ticket_id, event_id, entry_type, terminal_id, validator_id, is_duplicate, synced)
          VALUES ($1, $2, 'manual', $3, $4, true, true)`,
@@ -126,10 +127,9 @@ async function validateManual(eventId, terminalId, validatorId, ticketId) {
       );
       await client.query('COMMIT');
       return {
-        status: 'authorized',
+        status: 'duplicate',
         ticket_code: ticket.ticket_code,
         display_name: ticket.display_name,
-        batch: ticket.batch,
         first_entry_at: ticket.validated_at
       };
     }
