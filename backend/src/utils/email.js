@@ -84,7 +84,7 @@ async function sendActivationEmail(to, name, token) {
 
 // Link de redefinição de senha: expira em 1h
 async function sendPasswordResetEmail(to, name, token) {
-  const link = `${frontendUrl()}/recuperar?token=${token}`;
+  const link = `${frontendUrl()}/recuperar-senha?token=${token}`;
   return sendMail({
     to,
     subject: 'Recuperação de senha — Validevento',
