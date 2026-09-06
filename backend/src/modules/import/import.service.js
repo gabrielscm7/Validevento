@@ -8,7 +8,7 @@ const { isValidUUIDv4 } = require('../../utils/validation');
 function detectFormat(fileOrPath) {
   if (!fileOrPath) return null;
   const ext = path.extname(fileOrPath).toLowerCase();
-  const map = { '.csv': 'csv', '.json': 'json', '.xml': 'xml', '.xlsx': 'xlsx', '.xlsm': 'xlsx' };
+  const map = { '.csv': 'csv', '.json': 'json', '.xml': 'xml', '.xlsx': 'xlsx', '.xls': 'xlsx', '.xlsm': 'xlsx' };
   return map[ext] || null;
 }
 

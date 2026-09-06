@@ -12,7 +12,27 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const ALLOWED_EXTENSIONS = ['.csv', '.json', '.xml', '.xlsx', '.xlsm'];
+const ALLOWED_EXTENSIONS = ['.csv', '.xlsx', '.xls', '.json', '.xml', '.xlsm'];
+
+// BUG-03: browsers mobile frequentemente reportam MIME genérico (text/plain,
+// application/octet-stream) mesmo para CSV/XLSX. Aceitamos o arquivo quando a
+// EXTENSÃO é válida, independentemente do MIME type reportado.
+const VALID_MIMES = [
+  'text/csv',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'application/json',
+  'text/xml',
+  'application/xml',
+  'text/plain',
+  'application/octet-stream',
+];
+
+function isValidFileType(mimetype, originalname) {
+  const ext = path.extname(originalname || '').toLowerCase();
+  // MIME válido OU extensão válida → aceita
+  return VALID_MIMES.includes(mimetype) || ALLOWED_EXTENSIONS.includes(ext);
+}
 
 // Configurar multer com diskStorage para preservar a extensão original
 const storage = multer.diskStorage({
@@ -25,8 +45,7 @@ const storage = multer.diskStorage({
 });
 
 function fileFilter(req, file, cb) {
-  const ext = path.extname(file.originalname).toLowerCase();
-  if (!ALLOWED_EXTENSIONS.includes(ext)) {
+  if (!isValidFileType(file.mimetype, file.originalname)) {
     return cb(new Error('Formato não suportado. Use: CSV, JSON, XML ou XLSX.'));
   }
   cb(null, true);
