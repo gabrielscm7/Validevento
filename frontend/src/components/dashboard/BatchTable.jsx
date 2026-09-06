@@ -1,51 +1,33 @@
 export function BatchTable({ data, loading }) {
   if (loading) {
-    return (
-      <div className="card p-5 animate-pulse">
-        <div className="h-4 w-28 bg-muted rounded mb-4" />
-        <div className="space-y-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-10 bg-muted rounded" />
-          ))}
-        </div>
-      </div>
-    )
+    return <div className="card card-pad">Carregando lotes…</div>
   }
-
-  const rows = data ?? []
-
+  const rows = data || []
   return (
-    <div className="card p-5">
-      <h3 className="text-sm font-semibold text-foreground mb-4">Status por lote</h3>
-      {rows.length === 0 ? (
-        <p className="text-muted-foreground text-sm text-center py-6">Nenhum lote encontrado</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+    <div className="card">
+      <div className="card-pad">
+        <div className="card-head"><h3 className="card-title">Lotes</h3></div>
+        {rows.length === 0 && <p className="text-muted text-sm text-center py-6">Sem lotes</p>}
+      </div>
+      {rows.length > 0 && (
+        <div className="table-wrap">
+          <table className="table">
             <thead>
-              <tr className="text-muted-foreground text-xs uppercase tracking-wide">
-                <th className="text-left pb-2 font-medium">Lote</th>
-                <th className="text-right pb-2 font-medium">Total</th>
-                <th className="text-right pb-2 font-medium">Entradas</th>
-                <th className="text-right pb-2 font-medium">Bloqueados</th>
-                <th className="text-right pb-2 font-medium">%</th>
-              </tr>
+              <tr><th>Lote</th><th className="num">Gerados</th><th className="num">Validados</th><th>%</th></tr>
             </thead>
-            <tbody className="divide-y divide-border">
-              {rows.map((r) => (
-                <tr key={r.batch} className="text-foreground">
-                  <td className="py-2.5 font-medium">{r.batch}</td>
-                  <td className="py-2.5 text-right">{r.total}</td>
-                  <td className="py-2.5 text-right">{r.validated}</td>
-                  <td className="py-2.5 text-right">{r.blocked}</td>
-                  <td className="py-2.5 text-right">
-                    <span className={
-                      (r.pct ?? 0) >= 80 ? 'text-emerald-600 dark:text-emerald-300' :
-                      (r.pct ?? 0) >= 50 ? 'text-amber-600 dark:text-amber-300' :
-                      'text-muted-foreground'
-                    }>
-                      {Number(r.pct ?? 0).toFixed(1)}%
-                    </span>
+            <tbody>
+              {rows.map((b) => (
+                <tr key={b.batch}>
+                  <td className="font-medium" style={{ color: 'var(--text-strong)' }}>{b.batch}</td>
+                  <td className="num">{b.total}</td>
+                  <td className="num">{b.validated}</td>
+                  <td>
+                    <div className="flex items-center gap-2">
+                      <div className="progress flex-1" style={{ minWidth: 60 }}>
+                        <div className="bar purple" style={{ width: `${Math.min(100, b.pct || 0)}%` }} />
+                      </div>
+                      <span className="text-xs text-muted">{b.pct || 0}%</span>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -56,3 +38,5 @@ export function BatchTable({ data, loading }) {
     </div>
   )
 }
+
+export default BatchTable

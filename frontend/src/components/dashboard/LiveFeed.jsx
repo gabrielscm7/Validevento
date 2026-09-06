@@ -1,65 +1,51 @@
-function formatTime(isoStr) {
-  if (!isoStr) return ''
-  return new Date(isoStr).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-}
+import { formatTimeSec } from '../../lib/format'
 
-const ENTRY_TYPE_LABEL = {
-  qrcode: { label: 'QRCode', cls: 'badge-blue' },
-  manual: { label: 'Manual', cls: 'badge-slate' },
-  master: { label: 'Master', cls: 'badge-orange' },
+const TYPE_BADGE = {
+  authorized: { label: 'ENTROU', cls: 'badge-green' },
+  duplicate: { label: 'DUPLICATA', cls: 'badge-yellow' },
+  master: { label: 'MASTER', cls: 'badge-purple' },
+  cortesia: { label: 'CORTESIA', cls: 'badge-purple' },
+  liberacao_especial: { label: 'LIBERAÇÃO', cls: 'badge-blue' },
 }
 
 export function LiveFeed({ data, loading }) {
-  if (loading) {
-    return (
-      <div className="card p-5 animate-pulse">
-        <div className="h-4 w-28 bg-muted rounded mb-4" />
-        <div className="space-y-2">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-14 bg-muted rounded" />
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  const entries = data ?? []
+  if (loading) return <div className="card card-pad">Carregando…</div>
+  const rows = data || []
 
   return (
-    <div className="card p-5">
-      <h3 className="text-sm font-semibold text-foreground mb-4">Validações ao Vivo</h3>
-      {entries.length === 0 ? (
-        <p className="text-muted-foreground text-sm text-center py-6">Nenhuma validação registrada</p>
-      ) : (
-        <div className="space-y-2 max-h-80 overflow-y-auto">
-          {entries.map((e) => {
-            const typeCfg = ENTRY_TYPE_LABEL[e.entry_type] ?? { label: e.entry_type || '—', cls: 'badge-slate' }
-            return (
-              <div key={e.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-secondary/60">
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  e.is_duplicate ? 'bg-amber-400' : 'bg-emerald-500'
-                }`} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {e.display_name ?? '—'}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {e.ticket_code}
-                    {e.batch ? ` · ${e.batch}` : ''}
-                    {e.origin ? ` · ${e.origin}` : ''}
-                    {e.validator_name ? ` · ${e.validator_name}` : ''}
-                    {e.terminal_name ? ` · ${e.terminal_name}` : ''}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className={typeCfg.cls}>{typeCfg.label}</span>
-                  <span className="text-xs text-muted-foreground">{formatTime(e.created_at)}</span>
-                </div>
+    <div className="card card-pad">
+      <div className="card-head">
+        <h3 className="card-title">Feed ao vivo</h3>
+        <span className="badge badge-gray">{rows.length}</span>
+      </div>
+      {rows.length === 0 && <p className="text-muted text-sm text-center py-6">Aguardando validações…</p>}
+      <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+        {rows.map((l) => {
+          const badge = l.entry_type === 'master' ? TYPE_BADGE.master
+            : l.is_duplicate ? TYPE_BADGE.duplicate
+            : l.origin === 'cortesia' ? TYPE_BADGE.cortesia
+            : l.origin === 'liberacao_especial' ? TYPE_BADGE.liberacao_especial
+            : TYPE_BADGE.authorized
+          return (
+            <div key={l.id} className="feed-line">
+              <div className="flex-1 min-width-0" style={{ minWidth: 0 }}>
+                <p className="font-medium text-sm truncate" style={{ color: 'var(--text-strong)' }}>{l.display_name}</p>
+                <p className="text-xs text-muted truncate">
+                  {l.batch || ''}
+                  {l.validator_name ? ` · ${l.validator_name}` : ''}
+                  {l.terminal_name ? ` · ${l.terminal_name}` : ''}
+                </p>
               </div>
-            )
-          })}
-        </div>
-      )}
+              <div className="text-right flex-shrink-0">
+                <span className={`badge ${badge.cls}`}>{badge.label}</span>
+                <p className="text-xs text-muted mt-1">{formatTimeSec(l.created_at)}</p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
+
+export default LiveFeed

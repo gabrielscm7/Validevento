@@ -1,66 +1,48 @@
-function formatTime(isoStr) {
-  if (!isoStr) return ''
-  return new Date(isoStr).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-}
+import { formatTimeSec } from '../../lib/format'
 
-const TYPE_CFG = {
-  duplicate:          { emoji: '⚠️', label: 'Duplicata',        cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' },
-  blocked_attempt:    { emoji: '🚫', label: 'Bloqueado',        cls: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' },
-  master_use:         { emoji: '🎟️', label: 'Master',          cls: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' },
-  cortesia:           { emoji: '🎁', label: 'Cortesia',         cls: 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300' },
-  liberacao_especial: { emoji: '🕊️', label: 'Liberação',       cls: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-300' },
+const TYPE_META = {
+  duplicate: { label: 'Duplicata', cls: 'badge-yellow', icon: '⚠️' },
+  blocked_attempt: { label: 'Bloqueado tentado', cls: 'badge-red', icon: '🚫' },
+  master_use: { label: 'Ingresso master', cls: 'badge-purple', icon: '🎟' },
+  cortesia: { label: 'Cortesia', cls: 'badge-purple', icon: '🎁' },
+  liberacao_especial: { label: 'Liberação especial', cls: 'badge-blue', icon: '🕊' },
 }
 
 export function AlertsFeed({ data, loading }) {
-  if (loading) {
-    return (
-      <div className="card p-5 animate-pulse">
-        <div className="h-4 w-24 bg-muted rounded mb-4" />
-        <div className="space-y-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-12 bg-muted rounded" />
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  const alerts = data ?? []
+  if (loading) return <div className="card card-pad">Carregando…</div>
+  const rows = data || []
 
   return (
-    <div className="card p-5">
-      <h3 className="text-sm font-semibold text-foreground mb-4">Alertas e Ocorrências</h3>
-      {alerts.length === 0 ? (
-        <p className="text-muted-foreground text-sm text-center py-6">Nenhum alerta</p>
-      ) : (
-        <div className="space-y-2 max-h-64 overflow-y-auto">
-          {alerts.map((a) => {
-            const cfg = TYPE_CFG[a.type] ?? { emoji: '📌', label: a.type || 'Ocorrência', cls: 'bg-muted text-muted-foreground' }
-            return (
-              <div
-                key={a.id}
-                className="flex items-start gap-3 p-2.5 rounded-xl bg-secondary/60 border border-border"
-              >
-                <span className="text-lg mt-0.5" aria-hidden="true">{cfg.emoji}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {a.display_name ?? '—'}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {a.ticket_code ? `${a.ticket_code} · ` : ''}
-                    {a.validator_name ? `${a.validator_name} · ` : ''}
-                    {a.terminal_name ? `${a.terminal_name} · ` : ''}
-                    {formatTime(a.created_at)}
-                  </p>
-                </div>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.cls}`}>
-                  {cfg.label}
-                </span>
-              </div>
-            )
-          })}
-        </div>
+    <div className="card card-pad">
+      <div className="card-head">
+        <h3 className="card-title">Alertas</h3>
+        {rows.length > 0 && <span className="badge badge-red">{rows.length}</span>}
+      </div>
+      {rows.length === 0 && (
+        <p className="text-muted text-sm text-center py-6">Nenhum alerta registrado</p>
       )}
+      <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+        {rows.map((a) => {
+          const meta = TYPE_META[a.type] || { label: a.type, cls: 'badge-gray', icon: '•' }
+          return (
+            <div key={a.id} className="feed-line">
+              <span aria-hidden="true">{meta.icon}</span>
+              <div className="flex-1" style={{ minWidth: 0 }}>
+                <p className="text-sm truncate" style={{ color: 'var(--text-strong)' }}>
+                  <span className="font-medium">{a.display_name}</span>
+                </p>
+                <p className="text-xs text-muted truncate">
+                  {a.validator_name || ''}
+                  {a.terminal_name ? ` · ${a.terminal_name}` : ''} · {formatTimeSec(a.created_at)}
+                </p>
+              </div>
+              <span className={`badge ${meta.cls}`}>{meta.label}</span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
+
+export default AlertsFeed
