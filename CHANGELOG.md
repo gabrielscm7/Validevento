@@ -1,5 +1,100 @@
 # Changelog — Validevento
 
+## v2.1.0 — Multi-tenant SaaS · Fase 2 — Gestão de evento e ingressos (2026-09-06)
+
+### Resumo
+
+Gestão completa do ciclo de vida do evento: criação/configuração, equipe
+designada, lotes e ingressos, ingressos de emergência (master + convite avulso
++ liberação em lista), portões com auditoria de abertura/fechamento e validação
+com checkout e reentrada configuráveis por evento.
+
+### 🗄️ Banco de dados (migration `backend/migrations/004_phase2.sql`)
+
+- `entry_logs`: coluna `beneficiary` (nome digitado no uso do ingresso master)
+  e `ticket_id` passa a aceitar `NULL` (uso master grava log sem ticket).
+- `batches`: coluna `description` (descrição textual do lote).
+- Migração incremental e idempotente (`ADD COLUMN IF NOT EXISTS` /
+  `ALTER COLUMN ... DROP NOT NULL`) — não altera estruturas da Fase 1.
+
+### ✨ Novo: Gestão de eventos (`modules/events`)
+
+- `GET /api/events` (lista com resumo e filtro por status) e `POST /api/events`
+  (admin/master) — criação já embute o `event_config` padrão.
+- `GET /api/events/:id` com estatísticas (ingressos, validados, terminais
+  ativos, portões), `PUT /api/events/:id` e `PATCH /api/events/:id/status`.
+- Máquina de estados: `draft → active | closed` e `active → closed`; evento
+  fechado é imutável (`422 event_closed`).
+- Auditoria: `event_created`, `event_updated`, `event_status_changed`.
+- Rota legada `GET /api/events/active` preservada (compatibilidade v1).
+
+### ✨ Novo: Configuração de evento (`modules/event-config`)
+
+- `GET/PUT /api/events/:id/config` (qrcode_field, manual_fields,
+  checkout_enabled, reentry_mode, duplicate_action, master_ticket_enabled,
+  métricas e formatos de exportação).
+- Bloqueio de edição de `checkout_enabled`/`reentry_mode` em evento fechado.
+- `PATCH /api/events/:id/config/checkout` — ativação em tempo real pelo
+  supervisor (apenas com evento ativo). Auditoria: `event_config_updated`,
+  `checkout_toggled`.
+
+### ✨ Novo: Equipe do evento (`modules/event-team` + `middleware/eventAccess.js`)
+
+- `GET/POST /api/events/:id/team` e `DELETE /api/events/:id/team/:userId`, com
+  `role_override` e validação de mesmo tenant.
+- Remoção bloqueada com evento ativo e usuário online no terminal
+  (`422 user_online`).
+- **`eventAccess.js`**: libera membros da equipe e admin/master do tenant em
+  todos os endpoints de `:eventId` (`403 not_in_event_team` quando aplicável).
+
+### ✨ Novo: Lotes e ingressos (`modules/batches` + `modules/tickets`)
+
+- Lotes por evento (`GET/POST/PUT/DELETE /api/events/:id/batches`) com
+  ocupação; edição bloqueada com ingressos validados e exclusão bloqueada com
+  qualquer ingresso no lote. Rota v1 `/api/batches` mantida.
+- `GET /api/events/:id/tickets` (paginação + filtros) e
+  `PATCH .../block` / `.../unblock` com auditoria (`ticket_blocked`,
+  `ticket_unblocked`).
+
+### ✨ Novo: Ingressos de emergência (`modules/invitations`)
+
+- Ingresso master por evento: `GET/POST/DELETE /api/events/:id/master-ticket`
+  (upsert, `max_uses` opcional — `null` = ilimitado; desativação sem exclusão).
+- `POST /api/validation/master` — uso registrado com beneficiário, contador e
+  limite (`422 master_ticket_limit_reached`).
+- Convite avulso (`POST /api/events/:id/invitations`) — origem `cortesia`,
+  utilizável imediatamente.
+- Liberação em lista (`POST /api/events/:id/invitations/bulk`, CSV) — origem
+  `liberacao_especial`.
+- Ambos respeitam a cota de ingressos do tenant (`422 quota_exceeded`).
+- Auditoria: `master_ticket_created/deactivated`, `invitation_created`,
+  `bulk_invitation_created`.
+
+### ✨ Novo: Gestão de portões (`modules/gates`)
+
+- `GET/POST /api/events/:id/gates` e `PATCH .../open` / `.../close` com
+  timestamp e operador registrados.
+- Erros `422 gate_already_open` e `422 gate_not_open`.
+- Auditoria: `gate_created`, `gate_opened`, `gate_closed`.
+
+### 🔄 Validação com checkout e reentrada (`modules/validation`)
+
+- `POST /api/validation/checkout` — registra saída no ticket e no entry_log;
+  erros `checkout_disabled`, `not_checked_in`, `already_checked_out`.
+- `reentry_mode` aplicado no check-in (QRCode e manual):
+  - `none`: segunda leitura → `duplicate` (com `warning` se `duplicate_action=warn`);
+  - `free`: nova entrada autorizada (`reentry: true`);
+  - `conditioned`: reentrada apenas após checkout registrado.
+- Correção do BUG-01 mantida (duplicata nunca retorna `authorized`).
+
+### 🧪 Testes
+
+- **40 testes / 10 suítes** (Jest + Supertest) — Fase 1 intacta + novas suítes:
+  `events`, `config`, `reentry`, `invitations`, `gates` e `T-quota-2` em
+  `quota.test.js`.
+
+---
+
 ## v2.0.0 — Multi-tenant SaaS · Fase 1 — Fundação multi-tenant (2026-09-05)
 
 > **Nota de versionamento:** a antiga versão `v2.0.0` (linha legada — portaria
