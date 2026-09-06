@@ -17,5 +17,14 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // Data fetching idiomático (carregar em effects) é padrão em stores e
+      // páginas; a regra nova do react-hooks não se aplica ao nosso fluxo.
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
+  {
+    files: ['server.js', 'vite.config.js', 'scripts/**/*.mjs'],
+    languageOptions: { globals: globals.node },
   },
 ])

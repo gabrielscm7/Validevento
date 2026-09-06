@@ -1,40 +1,39 @@
 import { Component } from 'react'
+import Logo from './Logo'
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
     super(props)
-    this.state = { error: null, errorInfo: null }
+    this.state = { error: null }
   }
 
   static getDerivedStateFromError(error) {
     return { error }
   }
 
-  componentDidCatch(error, errorInfo) {
-    this.setState({ errorInfo })
-    console.error('ErrorBoundary caught:', error, errorInfo)
+  componentDidCatch(error) {
+    console.error('ErrorBoundary caught:', error)
   }
 
   render() {
     if (this.state.error) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-background px-4">
-          <div className="card p-8 max-w-md w-full text-center space-y-4">
-            <span className="text-5xl">⚠️</span>
-            <h1 className="text-xl font-bold text-foreground">Algo deu errado</h1>
-            <p className="text-sm text-muted-foreground">
-              Ocorreu um erro inesperado. Tente recarregar a página.
-            </p>
-            <details className="text-left text-xs text-muted-foreground bg-muted rounded-xl p-3 max-h-40 overflow-auto">
-              <summary className="cursor-pointer font-medium">Detalhes técnicos</summary>
-              <pre className="mt-2 whitespace-pre-wrap">{this.state.error?.toString()}</pre>
-            </details>
-            <button
-              onClick={() => window.location.reload()}
-              className="btn-primary w-full"
-            >
-              Recarregar página
-            </button>
+        <div className="page">
+          <div className="page-body narrow">
+            <div className="card card-pad" style={{ marginTop: 60, textAlign: 'center' }}>
+              <Logo withText />
+              <div style={{ marginTop: 28 }}>
+                <p className="empty-title">Algo deu errado</p>
+                <p className="empty-sub mt-2">Ocorreu um erro inesperado. Tente recarregar a página.</p>
+                <details className="mt-4" style={{ textAlign: 'left' }}>
+                  <summary className="btn-text">Detalhes técnicos</summary>
+                  <pre className="report-pre mt-2">{this.state.error?.toString()}</pre>
+                </details>
+                <button type="button" className="btn-primary btn mt-4" onClick={() => window.location.reload()}>
+                  Recarregar página
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )
