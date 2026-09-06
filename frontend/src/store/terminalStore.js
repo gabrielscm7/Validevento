@@ -1,32 +1,56 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import api from '../services/api'
-import { setEventId, setTerminalId, getTerminalId } from '../services/localDB'
+import {
+  setEventId,
+  setTerminalId,
+  getTerminalId,
+  saveMeta,
+  getMeta,
+} from '../services/localDB'
 
 export const useTerminalStore = create(
   persist(
     (set, get) => ({
-      terminalId:   null,
+      terminalId: null,
       terminalName: null,
-      eventId:      import.meta.env.VITE_EVENT_ID || null,
+      eventId: import.meta.env.VITE_EVENT_ID || null,
+      lastResult: null,
       loadingEvent: false,
-      initialized:  false,
+      initialized: false,
 
-      initTerminal: async () => {
-        if (get().initialized) return
-        const storedTerminalId = await getTerminalId()
-        if (storedTerminalId) {
-          set({ terminalId: storedTerminalId, initialized: true })
-          return
+      /**
+       * Cria/recupera o terminal_id do meta. Se receber eventId, também o
+       * persiste (é o evento em operação neste dispositivo).
+       */
+      initTerminal: async (eventId) => {
+        let terminalId = await getTerminalId()
+        if (!terminalId) {
+          terminalId = crypto.randomUUID()
+          await setTerminalId(terminalId)
         }
-        const newId = crypto.randomUUID()
-        await setTerminalId(newId)
-        set({ terminalId: newId, initialized: true })
+
+        if (eventId) {
+          await setEventId(eventId)
+        }
+
+        const resolvedEventId = eventId || get().eventId
+        const name = await getMeta('terminal_name')
+        set({
+          terminalId,
+          terminalName: name || get().terminalName || 'Terminal de Portaria',
+          eventId: resolvedEventId,
+          initialized: true,
+        })
+        return terminalId
       },
+
+      setLastResult: (result) => set({ lastResult: result }),
 
       setTerminal: async ({ terminalId, terminalName }) => {
         set({ terminalId, terminalName })
         if (terminalId) await setTerminalId(terminalId)
+        if (terminalName) await saveMeta('terminal_name', terminalName)
       },
 
       setEvent: async ({ eventId }) => {
@@ -34,11 +58,11 @@ export const useTerminalStore = create(
         if (eventId) await setEventId(eventId)
       },
 
-      clear: () =>
-        set({ terminalId: null, terminalName: null }),
+      clear: () => set({ terminalId: null, terminalName: null, lastResult: null }),
 
       isConfigured: () => !!get().terminalId && !!get().eventId,
 
+      /** Fallback v1: detecta evento ativo quando não configurado (mantido). */
       ensureEvent: async () => {
         if (get().eventId) return
         if (get().loadingEvent) return
@@ -49,10 +73,8 @@ export const useTerminalStore = create(
           if (event && event.id) {
             set({ eventId: event.id, loadingEvent: false })
             await setEventId(event.id)
-            console.log('Evento detectado:', event.name, '(' + event.id + ')')
           } else {
             set({ loadingEvent: false })
-            console.warn('API retornou resposta sem dados de evento. Status:', response.status)
           }
         } catch (err) {
           set({ loadingEvent: false })
@@ -63,9 +85,9 @@ export const useTerminalStore = create(
     {
       name: 've_terminal',
       partialize: (s) => ({
-        terminalId:   s.terminalId,
+        terminalId: s.terminalId,
         terminalName: s.terminalName,
-        eventId:      s.eventId,
+        eventId: s.eventId,
       }),
     }
   )

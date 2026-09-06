@@ -4,23 +4,24 @@ import { useAuthStore } from '../store/authStore'
 import { ThemeToggle } from '../components/ThemeToggle'
 
 export default function Login() {
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError]       = useState('')
-  const [loading, setLoading]   = useState(false)
-  const { login }               = useAuthStore()
-  const navigate                = useNavigate()
+  const [cpf, setCpf]             = useState('')
+  const [password, setPassword]   = useState('')
+  const [error, setError]         = useState('')
+  const [loading, setLoading]     = useState(false)
+  const { login }                 = useAuthStore()
+  const navigate                  = useNavigate()
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
     setLoading(true)
     try {
-      const user = await login(email, password)
-      if (user.role === 'admin') navigate('/dashboard')
+      const user = await login(cpf, password)
+      if (user.role === 'admin' || user.role === 'supervisor') navigate('/dashboard')
       else navigate('/terminal')
     } catch (err) {
-      setError(err.response?.data?.error ?? 'Falha no login. Verifique suas credenciais.')
+      const msg = err.response?.data?.error ?? 'Falha no login. Verifique suas credenciais.'
+      setError(msg === 'email_not_verified' ? 'E-mail ainda não verificado. Verifique sua caixa de entrada.' : msg)
     } finally {
       setLoading(false)
     }
@@ -56,16 +57,16 @@ export default function Login() {
           className="card p-6 flex flex-col gap-5 shadow-lg"
         >
           <div>
-            <label htmlFor="login-email" className="label">E-mail</label>
+            <label htmlFor="login-cpf" className="label">CPF</label>
             <input
-              id="login-email"
-              type="email"
+              id="login-cpf"
               className="input"
-              placeholder="usuario@evento.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              placeholder="000.000.000-00"
+              value={cpf}
+              onChange={(e) => setCpf(e.target.value)}
               required
-              autoComplete="email"
+              autoComplete="username"
+              inputMode="numeric"
             />
           </div>
 

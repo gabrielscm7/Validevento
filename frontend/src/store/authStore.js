@@ -2,29 +2,43 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import api from '../services/api'
 
+const TOKEN_KEY = 've_token'
+
 export const useAuthStore = create(
   persist(
     (set, get) => ({
-      user:  null,
+      user: null,
       token: null,
+      isAuthenticated: false,
 
-      login: async (email, password) => {
-        const { data } = await api.post('/api/auth/login', { email, password })
-        localStorage.setItem('ve_token', data.token)
-        set({ user: data.user, token: data.token })
+      login: async (cpf, password) => {
+        const { data } = await api.post('/api/auth/login', { cpf, password })
+        localStorage.setItem(TOKEN_KEY, data.token)
+        set({ user: data.user, token: data.token, isAuthenticated: true })
         return data.user
       },
 
       logout: () => {
-        localStorage.removeItem('ve_token')
-        set({ user: null, token: null })
+        localStorage.removeItem(TOKEN_KEY)
+        set({ user: null, token: null, isAuthenticated: false })
       },
 
-      isAuthenticated: () => !!get().token,
-      isAdmin:         () => get().user?.role === 'admin',
-      isSupervisor:    () => ['admin', 'supervisor'].includes(get().user?.role),
-      isValidator:     () => !!get().user,
+      restoreSession: () => {
+        const token = localStorage.getItem(TOKEN_KEY)
+        if (token && get().user) {
+          set({ token, isAuthenticated: true })
+        }
+      },
+
+      isAdmin: () => get().user?.role === 'admin',
+      isSupervisor: () => ['admin', 'supervisor'].includes(get().user?.role),
+      isValidator: () => !!get().user,
     }),
     { name: 've_auth', partialize: (s) => ({ user: s.user, token: s.token }) }
   )
 )
+
+// Restaura a sessão (token) ao iniciar a aplicação
+if (typeof window !== 'undefined') {
+  useAuthStore.getState().restoreSession()
+}

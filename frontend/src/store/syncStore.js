@@ -1,34 +1,40 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { syncWithServer } from '../services/syncService'
-import { getLastSync } from '../services/localDB'
+import { getLastSync, getPendingLogs } from '../services/localDB'
 
 export const useSyncStore = create(
   persist(
     (set, get) => ({
-      lastSyncAt:   null,
-      isSyncing:    false,
-      syncError:    null,
-      pendingLogs:  0,
+      lastSyncAt: null,
+      isSyncing: false,
+      isOnline: typeof navigator === 'undefined' ? true : navigator.onLine,
+      pendingLogs: 0,
+      syncError: null,
 
-      setLastSync: (ts)  => set({ lastSyncAt: ts }),
-      setPending:  (n)   => set({ pendingLogs: n }),
-
-      sync: async (forceFullSync = false) => {
-        if (get().isSyncing) return
+      sync: async () => {
+        if (get().isSyncing) return null
         set({ isSyncing: true, syncError: null })
         try {
-          const result = await syncWithServer(forceFullSync)
+          const result = await syncWithServer()
           const ts = await getLastSync()
-          set({ lastSyncAt: ts, isSyncing: false })
+          const pending = await getPendingLogs()
+          set({ lastSyncAt: ts, isSyncing: false, pendingLogs: pending.length })
           return result
         } catch (err) {
-          set({ isSyncing: false, syncError: err.message })
+          set({ isSyncing: false, syncError: err?.message || 'Erro de sincronização.' })
           throw err
         }
       },
 
-      /** True se último sync há mais de 2 horas (nunca mostra stale antes do primeiro sync) */
+      setOnline: (online) => set({ isOnline: !!online }),
+
+      setPendingCount: (n) => set({ pendingLogs: Number(n) || 0 }),
+
+      /** Alias legado */
+      setPending: (n) => set({ pendingLogs: Number(n) || 0 }),
+
+      /** True se o último sync foi há mais de 2 horas (nunca antes do primeiro sync) */
       isStale: () => {
         const ts = get().lastSyncAt
         if (!ts) return false
