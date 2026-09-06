@@ -1,5 +1,53 @@
 # Changelog — Validevento
 
+## v2.3.1 — Produção no ar · pendências P1–P9 pós-Fase 4 (2026-09-06)
+
+### Resumo
+
+Deploy real da v2 em produção (Railway) e tratamento das pendências de
+entrega listadas em `Docs/HANDOFF-FASE4-PENDENCIAS.md` e
+`Docs/CHECKLIST-DEPLOY-v2.md`. Branch `master` enviada (`a4da41c..29c1222` +
+docs); backend e frontend redeployados com sucesso.
+
+### 🚀 Produção (Railway)
+
+- Deploy do backend passou de FAILED (25/08, sem logs de runtime) para
+  **SUCCESS** (`5c72fc3b`) com o código atual — não reproduziu o crash. Backend
+  e frontend publicados em `29c1222`; `/health` e `/api/health` → 200.
+- Variáveis no serviço backend: `RESEND_API_KEY`, `CPF_LOOKUP_SALT` (gerado,
+  96 hex, guardado fora do repo — **imutável**) e `FRONTEND_URL`.
+- `preDeployCommand` passou a rodar apenas `npm run migrate` (seed removido;
+  usuários de produção são criados via SQL).
+- Migrations `01→006` aplicadas no banco de produção (inclui `005` audit
+  imutável — `DELETE` negado — e `006_event_branding`).
+- Usuário **master** criado via SQL: `gabrielscm@gmail.com` (role `master`,
+  e-mail verificado); login por CPF validado contra a API.
+
+### ✨ Backend — novas pendências entregues (P5/P6)
+
+- **P5 — banner_url/logo_url por evento**: migration `006_event_branding.sql`
+  e liberação dos campos em `events.service.js` (create + update). O frontend
+  já exibia com fallback; agora persiste via API.
+- **P6 — `POST /api/auth/resend-verification`**: reenvia e-mail de ativação com
+  novo token (TTL 48h); resposta genérica (não revela existência do e-mail).
+  Espelha `forgot-password`.
+- **fix**: link de recuperação de senha passou a apontar para `/recuperar-senha`
+  (rota real do frontend), não mais `/recuperar`.
+
+### 🧪 Testes
+
+- Backend: **59/59** (13 suítes) — novos `T-events-5` (branding), `T-email-3`
+  (resend gera token e ativa) e `T-email-4` (resend de e-mail verificado não
+  gera token).
+
+### ⚠️ Pendências restantes
+
+- P7: smoke test de UI no navegador (etapa de login por API já OK).
+- P9: `CORS_ORIGIN` está como `*` em produção (recomendado apontar para o
+  frontend) e confirmar remetente autorizado no Resend (`EMAIL_FROM`).
+
+---
+
 ## v2.3.0 — SaaS multi-tenant · Fase 4 — Frontend completo Validevento UI (2026-09-06)
 
 ### Resumo
