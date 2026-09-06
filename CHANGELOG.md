@@ -1,5 +1,90 @@
 # Changelog — Validevento
 
+## v2.2.0 — Multi-tenant SaaS · Fase 3 — Operação, sync offline, dashboard e relatórios (2026-09-06)
+
+### Resumo
+
+Operação completa em tempo real: sincronização offline dos terminais (v2),
+dashboard v2 por evento com métricas ao vivo e velocidade, relatórios
+Markdown/CSV/auditoria e log de auditoria imutável. Frontend migrado para o
+esquema IndexedDB v2 com validação offline-first.
+
+> **Aplicar no banco**: `npm run migrate` (backend) para ativar a imutabilidade
+> do `audit_logs` — migration `005_audit_immutable.sql` (até aqui ela roda
+> apenas na suíte de testes).
+
+### 🗄️ Banco de dados (migration `backend/migrations/005_audit_immutable.sql`)
+
+- `REVOKE DELETE ON audit_logs FROM PUBLIC` + trigger `BEFORE DELETE`
+  (`prevent_audit_delete`) que bloqueia exclusão inclusive para o owner
+  (RF-10/RN-07). `TRUNCATE` continua permitido (reset/limpeza).
+
+### 🔄 Sync offline v2 (`modules/sync`)
+
+- `GET /api/sync/snapshot` — todos os tickets do evento (sem `since`) ou apenas
+  `updated_at > since`; retorna `event_config` e `master_ticket` ativos;
+  registra heartbeat quando o `terminal_id` é informado.
+- `POST /api/sync/logs` — logs offline por `ticket_code`, com idempotência
+  (±5s por ticket), incremento de `uses_count` para `entry_type='master'`,
+  checkout espelhado no ticket/entry_log e resposta `{processed, ignored, errors}`.
+- `POST /api/sync/heartbeat` — upsert do terminal (`last_seen_at=NOW()`,
+  `online=true`) e resposta `{ok, server_time, terminal_id}`.
+- `markOfflineTerminals()` — marca `online=false` terminais sem heartbeat há
+  >3 min; executada a cada 2 min pelo `app.js` (fora do modo de teste).
+
+### ✨ Novo: Dashboard v2 (`modules/dashboard`)
+
+- Endpoints por evento em `/api/events/:eventId/dashboard/*`:
+  `summary`, `flow` (?date), `batches`, `alerts`, `terminals`,
+  `live-feed` e `speed` — perfil supervisor/admin/master (role efetiva da
+  equipe) e filtro por tenant.
+- `summary`: totais, validados, bloqueados, cortesias, liberações especiais,
+  ocupação %, usos de ingresso master e tentativas de duplicata.
+- `flow`: entradas e saídas por hora (saídas zeradas quando checkout inativo).
+- `speed`: tempo médio entre validações por terminal, pico de fluxo e % dentro
+  da meta (`validation_speed_target_sec`).
+- **Removida a v1** `/api/dashboard/*` (query `event_id`); frontend do painel
+  refatorado para as rotas v2.
+
+### ✨ Novo: Relatórios (`modules/reports`)
+
+- `GET /api/events/:eventId/reports/md` — `text/markdown`, anexo
+  `relatorio-[slug]-[data].md`; seções Resumo Geral, Portões, Fluxo de Entrada
+  por Hora, Ingressos por Lote, Métricas de Velocidade, Ocorrências e Log de
+  Auditoria. Timestamps em horário de Brasília; números pt-BR (1.045 / 94,4%).
+- `GET /api/events/:eventId/reports/csv` — `text/csv` com **BOM UTF-8** e
+  cabeçalho canônico; uma linha por entry_log, ordenado por entrada.
+- `GET /api/events/:eventId/reports/audit` — ações do evento (filtro por
+  `event_id`/`entity_id`) em JSON, `created_at DESC`.
+- Helper `slugify()` para nomes de arquivo.
+
+### 🧩 Frontend — offline-first
+
+- `services/localDB.js` — base **`validevento_db`** v2 (`tickets`, `entry_logs`,
+  `meta`); helpers `getTicketByCode`, `updateTicketStatus`, `saveEntryLog`,
+  `getPendingLogs`, `markLogsSynced`, `saveMeta/getMeta`, `clearEventData`.
+- `services/syncService.js` — heartbeat → envia logs pendentes → snapshot
+  incremental → salva `event_config`/`master_ticket` → merge protegido (não
+  sobrescreve `validated` local). Sync automático a cada 60 min e na reconexão;
+  exporta `forcSync()`.
+- `hooks/useOffline.js` — `{isOnline, lastSyncAt, syncNow}`; dispara sync ao
+  ficar online.
+- `hooks/useValidation.js` — `validateTicket(ticketCode)` offline-first
+  (aplica `reentry_mode` localmente, confirma no servidor em background) e
+  `checkoutTicket()`.
+- Stores: `authStore` (login por CPF + `restoreSession`), **`eventStore`** novo
+  (evento/config/master espelhados no IndexedDB), `syncStore` (online/pendentes)
+  e `terminalStore` (`lastResult`/`setLastResult`). Login (CPF) com roteamento
+  por papel.
+
+### 🧪 Testes
+
+- **56 testes / 13 suítes** (Jest + Supertest) — Fases 1 e 2 intactas + novas:
+  `sync` (T-sync-1..6), `dashboard` (T-dash-1..5) e `reports`
+  (T-15-md/csv/speed, T-audit-1/2).
+
+---
+
 ## v2.1.0 — Multi-tenant SaaS · Fase 2 — Gestão de evento e ingressos (2026-09-06)
 
 ### Resumo
