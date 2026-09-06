@@ -1,4 +1,14 @@
+/**
+ * Controller de validação (Fase 2).
+ */
 const validationService = require('./validation.service');
+
+function sendError(res, error) {
+  return res.status(error.status || 500).json({
+    error: error.code || error.message,
+    details: error.code ? error.message : undefined,
+  });
+}
 
 async function lookup(req, res) {
   try {
@@ -26,15 +36,6 @@ async function validateQRCode(req, res) {
     }
 
     const result = await validationService.validateQRCode(event_id, terminal_id, validatorId, ticket_code, req.tenantId);
-
-    if (result.status === 'not_found') {
-      return res.status(200).json({ status: 'not_found' });
-    }
-
-    if (result.status === 'blocked') {
-      return res.status(200).json(result);
-    }
-
     return res.status(200).json(result);
   } catch (error) {
     console.error('Erro na validação do QRCode:', error.message);
@@ -64,6 +65,58 @@ async function validateManual(req, res) {
   }
 }
 
+// POST /api/validation/checkout
+async function checkout(req, res) {
+  try {
+    const { ticket_code, event_id, terminal_id } = req.body;
+
+    if (!ticket_code || !event_id) {
+      return res.status(400).json({ error: 'Parâmetros ticket_code e event_id são obrigatórios.' });
+    }
+
+    const result = await validationService.checkout({
+      eventId: event_id,
+      terminalId: terminal_id,
+      validatorId: req.user.id,
+      ticketCode: ticket_code,
+      tenantId: req.tenantId,
+    });
+
+    if (result.error) {
+      return res.status(422).json({ error: result.error });
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Erro no checkout:', error.message);
+    return sendError(res, error);
+  }
+}
+
+// POST /api/validation/master
+async function useMaster(req, res) {
+  try {
+    const { event_id, terminal_id, beneficiary_name } = req.body;
+
+    if (!event_id || !beneficiary_name) {
+      return res.status(400).json({ error: 'Parâmetros event_id e beneficiary_name são obrigatórios.' });
+    }
+
+    const result = await validationService.useMaster({
+      eventId: event_id,
+      terminalId: terminal_id,
+      validatorId: req.user.id,
+      beneficiaryName: beneficiary_name,
+      tenantId: req.tenantId,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Erro no uso do ingresso master:', error.message);
+    return sendError(res, error);
+  }
+}
+
 async function search(req, res) {
   try {
     const { q, event_id } = req.query;
@@ -88,5 +141,7 @@ module.exports = {
   lookup,
   validateQRCode,
   validateManual,
-  search
+  checkout,
+  useMaster,
+  search,
 };

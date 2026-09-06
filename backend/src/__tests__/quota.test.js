@@ -1,6 +1,7 @@
+const crypto = require('crypto');
 const helpers = require('./helpers');
 const {
-  api, resetDb, createClient, createUser, loginToken, auth,
+  api, resetDb, pool, createClient, createUser, loginToken, auth,
 } = helpers;
 
 describe('Controle de cotas (Parte F)', () => {
@@ -80,5 +81,92 @@ describe('Controle de cotas (Parte F)', () => {
     expect(res.status).toBe(201);
     expect(res.body.max_validators).toBe(500);
     expect(res.body.max_tickets_per_event).toBe(99999);
+  });
+
+  test('T-quota-2: cota de ingressos bloqueia convite avulso (422 quota_exceeded)', async () => {
+    // Tenant com max_tickets_per_event = 2
+    const res = await api()
+      .post('/api/clients')
+      .set(auth(masterToken))
+      .send({
+        name: 'Cliente Cota Ingressos',
+        email: 'cota-ingressos@teste.com',
+        max_admins: 2,
+        max_supervisors: 5,
+        max_validators: 10,
+        max_tickets_per_event: 2,
+        max_events_active: 1,
+      });
+    expect(res.status).toBe(201);
+    const clientId = res.body.id;
+
+    const adminRes = await api()
+      .post('/api/users')
+      .set(auth(masterToken))
+      .send({
+        name: 'Admin Cota',
+        cpf: '12345678901',
+        email: 'admin-cota@teste.com',
+        role: 'admin',
+        tenant_id: clientId,
+      });
+    expect(adminRes.status).toBe(201);
+
+    const loginRes = await api()
+      .post('/api/auth/login')
+      .send({ cpf: '12345678901', password: 'senha123' });
+    // Usuário criado pelo master nasce sem senha (ativação pendente) — ativar direto no banco
+    expect(loginRes.status).toBe(403);
+
+    const activate = await helpers.pool.query(
+      `UPDATE users SET email_verified = true,
+        password_hash = $1,
+        email_token = NULL, email_token_exp = NULL
+       WHERE id = $2 RETURNING id`,
+      [require('bcryptjs').hashSync('admin123', 4), adminRes.body.id]
+    );
+    expect(activate.rowCount).toBe(1);
+
+    const token = await loginToken('12345678901', 'admin123');
+
+    const eventRes = await api()
+      .post('/api/events')
+      .set(auth(token))
+      .send({
+        name: 'Evento Cota Ingressos',
+        date: new Date('2026-12-15T18:00:00Z').toISOString(),
+        location: 'Local Cota',
+        capacity: 10,
+        responsible: ['Admin Cota'],
+      });
+    expect(eventRes.status).toBe(201);
+    const eventId = eventRes.body.id;
+
+    // Importa 2 ingressos (atinge a cota)
+    const csv = [
+      `codigo,nome`,
+      `${crypto.randomUUID()},Pessoa Um`,
+      `${crypto.randomUUID()},Pessoa Dois`,
+    ].join('\n') + '\n';
+
+    const importRes = await api()
+      .post('/api/import/csv')
+      .set(auth(token))
+      .field('event_id', eventId)
+      .attach('file', Buffer.from(csv, 'utf8'), {
+        filename: 'ingressos.csv',
+        contentType: 'text/csv',
+      });
+    expect(importRes.status).toBe(200);
+    expect(importRes.body.inserted).toBe(2);
+
+    // Convite avulso deve estourar a cota
+    const invite = await api()
+      .post(`/api/events/${eventId}/invitations`)
+      .set(auth(token))
+      .send({ display_name: 'Convidado Excedente' });
+
+    expect(invite.status).toBe(422);
+    expect(invite.body.error).toBe('quota_exceeded');
   });
 });

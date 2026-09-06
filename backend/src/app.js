@@ -16,6 +16,12 @@ const adminRoutes      = require('./modules/admin/admin.routes');
 const usersRoutes      = require('./modules/users/users.routes');
 const clientsRoutes    = require('./modules/clients/clients.routes');
 const batchesRoutes    = require('./modules/batches/batches.routes');
+const eventBatchesRoutes = require('./modules/batches/batches.event.routes');
+const eventConfigRoutes  = require('./modules/event-config/event-config.routes');
+const eventTeamRoutes    = require('./modules/event-team/event-team.routes');
+const ticketsRoutes      = require('./modules/tickets/tickets.routes');
+const invitationsRoutes  = require('./modules/invitations/invitations.routes');
+const gatesRoutes        = require('./modules/gates/gates.routes');
 
 const app = express();
 
@@ -126,6 +132,12 @@ app.use('/api/sync',       syncRoutes);
 app.use('/api/validation', validationRoutes);
 app.use('/api/dashboard',  dashboardRoutes);
 app.use('/api/events',     eventsRoutes);
+app.use('/api/events',     eventConfigRoutes);
+app.use('/api/events',     eventTeamRoutes);
+app.use('/api/events',     eventBatchesRoutes);
+app.use('/api/events',     ticketsRoutes);
+app.use('/api/events',     invitationsRoutes);
+app.use('/api/events',     gatesRoutes);
 app.use('/api/admin',      adminRoutes);
 app.use('/api/users',      usersRoutes);
 app.use('/api/clients',    clientsRoutes);
