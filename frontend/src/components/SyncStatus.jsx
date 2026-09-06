@@ -8,7 +8,7 @@ function formatTime(isoStr) {
 }
 
 export function SyncStatus({ showForce = false }) {
-  const isOffline = useOffline()
+  const { isOnline } = useOffline()
   const { lastSyncAt, isSyncing, syncError, isStale, sync } = useSyncStore()
 
   const stale = isStale()
@@ -17,16 +17,16 @@ export function SyncStatus({ showForce = false }) {
     <div className="flex items-center gap-2 text-xs">
       <span
         className={`w-2 h-2 rounded-full flex-shrink-0 ${
-          isOffline ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'
+          !isOnline ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'
         }`}
       />
 
       <span className={
-        isOffline ? 'text-red-600 dark:text-red-400' :
+        !isOnline ? 'text-red-600 dark:text-red-400' :
         stale     ? 'text-amber-600 dark:text-amber-400' :
                     'text-muted-foreground'
       }>
-        {isOffline
+        {!isOnline
           ? `Modo offline — último sync: ${formatTime(lastSyncAt)}`
           : stale
           ? `Base desatualizada — sync: ${formatTime(lastSyncAt)}`
@@ -41,7 +41,7 @@ export function SyncStatus({ showForce = false }) {
         </span>
       )}
 
-      {showForce && !isOffline && (
+      {showForce && isOnline && (
         <button
           onClick={() => sync()}
           disabled={isSyncing}

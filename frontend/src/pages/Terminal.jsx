@@ -27,7 +27,7 @@ export default function Terminal() {
   useEffect(() => { initTerminal(); ensureEvent() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const { sync, isSyncing }   = useSync()
   const { lookupTicketCode, validateTicketCode } = useValidation()
-  const isOffline             = useOffline()
+  const { isOnline }          = useOffline()
 
   const [method, setMethod]   = useState(null)
   const [result, setResult]   = useState(null)
@@ -129,7 +129,7 @@ export default function Terminal() {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          {isOffline && <span className="badge-red text-xs">OFFLINE</span>}
+          {!isOnline && <span className="badge-red text-xs">OFFLINE</span>}
           {canForceSync && (
             <button onClick={() => sync()} disabled={isSyncing} className="btn-secondary py-1.5 px-3 text-xs">
               {isSyncing ? '⟳' : '⟳ Sync'}

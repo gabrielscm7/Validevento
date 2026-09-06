@@ -1,92 +1,160 @@
 import api from './api'
-import { db, getLastSync, setLastSync, getTerminalId, getEventId } from './localDB'
+import {
+  db,
+  getEventId,
+  getTerminalId,
+  getLastSync,
+  setLastSync,
+  setTerminalId,
+  saveMeta,
+  getMeta,
+  getTicketByCode,
+  getPendingLogs,
+  markLogsSynced,
+} from './localDB'
 
-/** Envia logs pendentes e baixa snapshot incremental */
-export async function syncWithServer(forceFullSync = false) {
-  const eventId    = await getEventId()
-  const terminalId = await getTerminalId()
-  if (!eventId) throw new Error('Nenhum evento configurado localmente.')
+const SYNC_INTERVAL_MS = 60 * 60 * 1000 // 60 minutos
 
-  // ── 1. Enviar logs offline pendentes ──────────────────────────
-  const pendingLogs = await db.entry_logs
-    .where('synced').equals(0)
-    .toArray()
+let running = false
+let schedulerStarted = false
 
-  if (pendingLogs.length > 0) {
-    await api.post('/api/sync/logs', {
-      event_id:    eventId,
-      terminal_id: terminalId,
-      logs:        pendingLogs,
-    })
-    // Marcar como sincronizados
-    const ids = pendingLogs.map((l) => l.id)
-    await db.entry_logs.where('id').anyOf(ids).modify({ synced: 1 })
+function toServerLog(l) {
+  return {
+    local_id: l.id,
+    ticket_code: l.ticket_code,
+    entry_type: l.entry_type,
+    beneficiary: l.beneficiary,
+    is_duplicate: l.is_duplicate === true,
+    checkout_at: l.checkout_at || undefined,
+    created_at: l.created_at,
   }
+}
 
-  // ── 2. Baixar snapshot incremental ────────────────────────────
-  const lastSync = forceFullSync ? null : await getLastSync()
-  const params   = { event_id: eventId }
-  if (lastSync) params.since = lastSync
+/**
+ * Sincroniza o terminal com o servidor:
+ *  1. Heartbeat (registra terminal online)
+ *  2. Envia entry_logs pendentes
+ *  3. Baixa snapshot incremental (tickets alterados desde last_sync_at)
+ *  4. Salva event_config e master_ticket localmente
+ *  5. Mescla tickets com proteção a validação local
+ */
+export async function syncWithServer() {
+  if (running) return null
+  running = true
+  try {
+    const eventId = await getEventId()
+    if (!eventId) return null
 
-  const { data: snapshot } = await api.get('/api/sync/snapshot', { params })
-
-  // ── 3. Mesclar tickets na base local com resolução de conflito ─
-  // Os logs offline já foram processados pelo servidor (passo 1),
-  // mas o snapshot (passo 2) pode ainda não refletir essas mudanças
-  // pois o param `since` filtra por updated_at anterior ao sync.
-  // Isto é intencional — a regra RN-04 preserva o status validated local
-  // e o próximo sync capturará as atualizações do servidor.
-  for (const ticket of snapshot.tickets) {
-    const local = await db.tickets
-      .where('ticket_code').equals(ticket.ticket_code).first()
-
-    if (!local) {
-      await db.tickets.put({ ...ticket })
-      continue
-    }
-
-    // RN-04 client-side: nunca sobrescreve status validated local
-    if (local.status === 'validated') {
-      continue
-    }
-
-    // Se o ticket local foi modificado após o snapshot do servidor,
-    // preserva a versão local (provavelmente validação offline)
-    const localUpdated = local.updated_at ? new Date(local.updated_at).getTime() : 0
-    const serverUpdated = ticket.updated_at ? new Date(ticket.updated_at).getTime() : 0
-
-    if (localUpdated > serverUpdated) {
-      continue
-    }
-
-    // Servidor tem versão mais recente — atualizar
-    await db.tickets.put({
-      id: local.id,
-      ...ticket,
-    })
-  }
-
-  // ── 4. Atualizar timestamp ─────────────────────────────────────
-  await setLastSync(snapshot.last_sync_at)
-
-  // ── 5. Heartbeat para registrar o terminal como online ─────────
-  if (terminalId) {
+    // 1. Heartbeat + recuperação de terminal_id
+    let terminalId = await getTerminalId()
     try {
       const { data } = await api.post('/api/sync/heartbeat', {
-        event_id:    eventId,
-        terminal_id: terminalId,
-        name:        navigator.userAgent?.slice(0, 80) || 'Terminal Móvel',
+        event_id: eventId,
+        terminal_id: terminalId || undefined,
+        name: (typeof navigator !== 'undefined' && navigator.userAgent?.slice(0, 80)) || 'Terminal Móvel',
       })
-      if (data.terminal_id && data.terminal_id !== terminalId) {
-        const { setTerminalId } = await import('./localDB')
-        await setTerminalId(data.terminal_id)
+      if (data?.terminal_id) {
+        terminalId = data.terminal_id
+        await setTerminalId(terminalId)
       }
-    } catch { /* silencioso — offline */ }
-  }
+    } catch {
+      // offline — segue sem heartbeat
+    }
 
-  return {
-    tickets_updated: snapshot.total,
-    logs_sent:       pendingLogs.length,
-    last_sync_at:    snapshot.last_sync_at,
+    // 2. Enviar logs offline pendentes
+    let logsSent = 0
+    const pending = await getPendingLogs()
+    if (pending.length > 0) {
+      try {
+        const { data } = await api.post('/api/sync/logs', {
+          event_id: eventId,
+          terminal_id: terminalId || undefined,
+          logs: pending.map(toServerLog),
+        })
+        // Marcamos como sincronizados todos os logs enviados, exceto os que
+        // o servidor reportou como erro (para não reenviar em loop).
+        const errorIds = new Set((data?.errors ?? []).map((e) => e.local_id))
+        const syncedIds = pending.filter((l) => !errorIds.has(l.id)).map((l) => l.id)
+        await markLogsSynced(syncedIds)
+        logsSent = pending.length
+      } catch (e) {
+        // Falha de rede: mantém os logs pendentes para a próxima tentativa
+        console.warn('Falha ao enviar logs offline:', e?.message || e)
+      }
+    }
+
+    // 3. Snapshot incremental
+    const lastSync = await getLastSync()
+    const params = { event_id: eventId }
+    if (lastSync) params.since = lastSync
+
+    const { data: snapshot } = await api.get('/api/sync/snapshot', {
+      params: { ...params, terminal_id: terminalId || undefined },
+    })
+
+    // 4. Config + master ticket no meta
+    if (snapshot.event_config) await saveMeta('event_config', snapshot.event_config)
+    await saveMeta('master_ticket', snapshot.master_ticket || null)
+
+    // 5. Mesclar tickets
+    for (const ticket of snapshot.tickets || []) {
+      const local = await getTicketByCode(ticket.ticket_code)
+      if (!local) {
+        await db.tickets.put({ ...ticket, event_id: eventId })
+        continue
+      }
+      // Proteção contra race condition: validação local vence
+      if (local.status === 'validated') continue
+      // RN-04 client-side: versão local mais nova (ex.: bloqueio) não é sobrescrita
+      const localUpdated = local.updated_at ? new Date(local.updated_at).getTime() : 0
+      const serverUpdated = ticket.updated_at ? new Date(ticket.updated_at).getTime() : 0
+      if (localUpdated > serverUpdated) continue
+      await db.tickets.put({ ...local, ...ticket, event_id: eventId })
+    }
+
+    // 6. Atualiza timestamp do último sync
+    await setLastSync(snapshot.last_sync_at)
+
+    return {
+      tickets_updated: snapshot.total || 0,
+      logs_sent: logsSent,
+      last_sync_at: snapshot.last_sync_at,
+    }
+  } finally {
+    running = false
   }
+}
+
+/** Alias público para chamada manual (força um snapshot completo). */
+export async function forcSync() {
+  return syncWithServer()
+}
+
+/**
+ * Agenda o sync automático:
+ *  - a cada 60 minutos
+ *  - ao detectar reconexão de rede (window online)
+ */
+export function startAutoSync() {
+  if (schedulerStarted) return
+  schedulerStarted = true
+
+  setInterval(() => {
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      syncWithServer().catch(() => {})
+    }
+  }, SYNC_INTERVAL_MS)
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('online', () => {
+      syncWithServer().catch(() => {})
+    })
+  }
+}
+
+export { getMeta }
+
+// Inicia o agendador assim que o módulo for carregado no navegador
+if (typeof window !== 'undefined') {
+  startAutoSync()
 }
