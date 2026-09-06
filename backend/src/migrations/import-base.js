@@ -16,7 +16,9 @@ async function importBase() {
     const result = await importFile(
       eventId,
       process.argv[2],
-      process.argv[3] || 'base.xlsx'
+      process.argv[3] || 'base.xlsx',
+      undefined,
+      null
     );
     console.log(JSON.stringify(result, null, 2));
 

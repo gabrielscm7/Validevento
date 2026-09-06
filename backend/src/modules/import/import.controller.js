@@ -20,14 +20,14 @@ async function importFile(req, res) {
       return res.status(400).json({ error: 'Arquivo não fornecido (campo: file).' });
     }
 
-    const result = await importService.importFile(event_id, req.file.path, req.file.originalname, batch);
+    const result = await importService.importFile(event_id, req.file.path, req.file.originalname, batch, req.tenantId);
     return res.status(200).json(result);
   } catch (error) {
     console.error('Erro no controller de importação:', error.message);
     if (req.file) {
       try { require('fs').unlinkSync(req.file.path); } catch { /* ignore */ }
     }
-    return res.status(500).json({ error: error.message });
+    return res.status(error.status || 500).json({ error: error.message });
   }
 }
 

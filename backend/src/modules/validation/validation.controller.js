@@ -8,7 +8,7 @@ async function lookup(req, res) {
       return res.status(400).json({ error: 'Parâmetros code e event_id são obrigatórios.' });
     }
 
-    const result = await validationService.lookupTicket(event_id, code);
+    const result = await validationService.lookupTicket(event_id, code, req.tenantId);
     return res.status(200).json(result);
   } catch (error) {
     console.error('Erro na consulta do ticket:', error.message);
@@ -25,7 +25,7 @@ async function validateQRCode(req, res) {
       return res.status(400).json({ error: 'Parâmetros ticket_code e event_id são obrigatórios.' });
     }
 
-    const result = await validationService.validateQRCode(event_id, terminal_id, validatorId, ticket_code);
+    const result = await validationService.validateQRCode(event_id, terminal_id, validatorId, ticket_code, req.tenantId);
 
     if (result.status === 'not_found') {
       return res.status(200).json({ status: 'not_found' });
@@ -51,7 +51,7 @@ async function validateManual(req, res) {
       return res.status(400).json({ error: 'Parâmetros ticket_id e event_id são obrigatórios.' });
     }
 
-    const result = await validationService.validateManual(event_id, terminal_id, validatorId, ticket_id);
+    const result = await validationService.validateManual(event_id, terminal_id, validatorId, ticket_id, req.tenantId);
 
     if (result.status === 'not_found') {
       return res.status(404).json({ error: 'Ticket não encontrado.' });
@@ -76,7 +76,7 @@ async function search(req, res) {
       return res.status(400).json({ error: 'Forneça o parâmetro q (busca por nome).' });
     }
 
-    const results = await validationService.searchTickets(event_id, q);
+    const results = await validationService.searchTickets(event_id, q, req.tenantId);
     return res.status(200).json({ results });
   } catch (error) {
     console.error('Erro na busca de tickets:', error.message);

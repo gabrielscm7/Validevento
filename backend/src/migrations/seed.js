@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { pool, testConnection } = require('../config/database');
+const { cpfLookupHash } = require('../utils/hash');
 
 const SALT_ROUNDS = 10;
 
@@ -31,26 +32,35 @@ async function seed() {
     const validatorPasswordHash = await bcrypt.hash('validador123', SALT_ROUNDS);
     const supervisorPasswordHash = await bcrypt.hash('supervisor123', SALT_ROUNDS);
 
+    // Usuário Master (tenant_id NULL) — login por CPF 000.000.000-00
+    const masterPasswordHash = await bcrypt.hash('master123', SALT_ROUNDS);
     await pool.query(`
-      INSERT INTO users (name, email, password_hash, role, tenant_id, email_verified)
-      VALUES ($1, $2, $3, $4, $5, true)
+      INSERT INTO users (name, email, cpf_lookup_hash, password_hash, role, tenant_id, email_verified)
+      VALUES ($1, $2, $3, $4, 'master', NULL, true)
       ON CONFLICT (email) DO NOTHING
-    `, ['Administrador Validevento', 'admin@validevento.com', adminPasswordHash, 'admin', tenantId]);
-    console.log('Usuário ADMIN semeado: admin@validevento.com (senha: admin123)');
+    `, ['Master Validevento', 'master@validevento.com', cpfLookupHash('00000000000'), masterPasswordHash]);
+    console.log('Usuário MASTER semeado: master@validevento.com (CPF: 000.000.000-00 / senha: master123)');
 
     await pool.query(`
-      INSERT INTO users (name, email, password_hash, role, tenant_id, email_verified)
-      VALUES ($1, $2, $3, $4, $5, true)
+      INSERT INTO users (name, email, cpf_lookup_hash, password_hash, role, tenant_id, email_verified)
+      VALUES ($1, $2, $3, $4, 'admin', $5, true)
       ON CONFLICT (email) DO NOTHING
-    `, ['Validador Portaria 1', 'validador@validevento.com', validatorPasswordHash, 'validator', tenantId]);
-    console.log('Usuário VALIDATOR semeado: validador@validevento.com (senha: validador123)');
+    `, ['Administrador Validevento', 'admin@validevento.com', cpfLookupHash('11122233344'), adminPasswordHash, tenantId]);
+    console.log('Usuário ADMIN semeado: admin@validevento.com (CPF: 111.222.333-44 / senha: admin123)');
 
     await pool.query(`
-      INSERT INTO users (name, email, password_hash, role, tenant_id, email_verified)
-      VALUES ($1, $2, $3, $4, $5, true)
+      INSERT INTO users (name, email, cpf_lookup_hash, password_hash, role, tenant_id, email_verified)
+      VALUES ($1, $2, $3, $4, 'validator', $5, true)
       ON CONFLICT (email) DO NOTHING
-    `, ['Supervisor Portaria', 'supervisor@validevento.com', supervisorPasswordHash, 'supervisor', tenantId]);
-    console.log('Usuário SUPERVISOR semeado: supervisor@validevento.com (senha: supervisor123)');
+    `, ['Validador Portaria 1', 'validador@validevento.com', cpfLookupHash('33344455566'), validatorPasswordHash, tenantId]);
+    console.log('Usuário VALIDATOR semeado: validador@validevento.com (CPF: 333.444.555-66 / senha: validador123)');
+
+    await pool.query(`
+      INSERT INTO users (name, email, cpf_lookup_hash, password_hash, role, tenant_id, email_verified)
+      VALUES ($1, $2, $3, $4, 'supervisor', $5, true)
+      ON CONFLICT (email) DO NOTHING
+    `, ['Supervisor Portaria', 'supervisor@validevento.com', cpfLookupHash('22233344455'), supervisorPasswordHash, tenantId]);
+    console.log('Usuário SUPERVISOR semeado: supervisor@validevento.com (CPF: 222.333.444-55 / senha: supervisor123)');
 
     const eventRes = await pool.query(
       'SELECT id FROM events WHERE tenant_id = $1 LIMIT 1',

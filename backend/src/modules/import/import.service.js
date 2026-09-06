@@ -88,17 +88,32 @@ function normalizeRecord(raw, batchOverride) {
   return { ticketCode, batch, displayName, status };
 }
 
-async function importFile(eventId, filePath, originalName, batchOverride) {
+async function importFile(eventId, filePath, originalName, batchOverride, tenantId) {
   const startTime = Date.now();
 
-  const eventRes = await db.query('SELECT id FROM events WHERE id = $1', [eventId]);
+  // Evento precisa existir e pertencer ao tenant do usuário autenticado
+  const eventRes = await db.query(
+    'SELECT id, tenant_id FROM events WHERE id = $1',
+    [eventId]
+  );
   if (eventRes.rowCount === 0) {
-    throw new Error('Evento não encontrado para vincular os ingressos.');
+    const err = new Error('Evento não encontrado para vincular os ingressos.');
+    err.status = 404;
+    throw err;
+  }
+
+  const eventTenantId = eventRes.rows[0].tenant_id;
+  if (tenantId && eventTenantId !== tenantId) {
+    const err = new Error('Evento não pertence ao seu cliente.');
+    err.status = 403;
+    throw err;
   }
 
   const format = detectFormat(originalName) || detectFormat(filePath);
   if (!format) {
-    throw new Error('Formato de arquivo não suportado. Use CSV, JSON, XML ou XLSX.');
+    const err = new Error('Formato de arquivo não suportado. Use CSV, JSON, XML ou XLSX.');
+    err.status = 400;
+    throw err;
   }
 
   let records;
@@ -113,11 +128,15 @@ async function importFile(eventId, filePath, originalName, batchOverride) {
       records = parseXLSX(filePath);
     }
   } catch (err) {
-    throw new Error(`Erro ao ler arquivo ${format.toUpperCase()}: ${err.message}`);
+    const wrapped = new Error(`Erro ao ler arquivo ${format.toUpperCase()}: ${err.message}`);
+    wrapped.status = 400;
+    throw wrapped;
   }
 
   if (!records || records.length === 0) {
-    throw new Error('Nenhum registro encontrado no arquivo.');
+    const err = new Error('Nenhum registro encontrado no arquivo.');
+    err.status = 400;
+    throw err;
   }
 
   let inserted = 0;
@@ -166,8 +185,9 @@ async function importFile(eventId, filePath, originalName, batchOverride) {
         updated++;
       } else {
         await db.query(
-          `INSERT INTO tickets (event_id, ticket_code, batch, display_name, status) VALUES ($1, $2, $3, $4, $5)`,
-          [eventId, ticketCode, batch, displayName, status]
+          `INSERT INTO tickets (event_id, tenant_id, ticket_code, batch, display_name, status)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [eventId, eventTenantId, ticketCode, batch, displayName, status]
         );
         inserted++;
       }

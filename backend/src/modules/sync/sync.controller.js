@@ -11,7 +11,7 @@ async function getSnapshot(req, res) {
       return res.status(400).json({ error: 'event_id é obrigatório para obter snapshot.' });
     }
 
-    const snapshot = await syncService.getSnapshot(event_id, since);
+    const snapshot = await syncService.getSnapshot(event_id, since, req.tenantId);
     return res.status(200).json(snapshot);
   } catch (error) {
     console.error('Erro ao obter snapshot:', error.message);
@@ -35,7 +35,7 @@ async function syncLogs(req, res) {
       return res.status(400).json({ error: 'logs deve ser um array contendo os registros de entrada offline.' });
     }
 
-    const result = await syncService.processOfflineLogs(event_id, terminal_id, validatorId, logs);
+    const result = await syncService.processOfflineLogs(event_id, terminal_id, validatorId, logs, req.tenantId);
     
     // Atualiza a data de última sincronização do terminal se for fornecido terminal_id
     if (terminal_id) {

@@ -5,11 +5,12 @@ const requireRole = require('../../middleware/roles');
 
 const router = Router();
 
-router.use(authMiddleware, requireRole('admin'));
+// Gestão de usuários: admin do tenant ou master
+router.use(authMiddleware, requireRole('admin', 'master'));
 
-router.get('/',    usersController.list);
-router.post('/',   usersController.create);
-router.put('/:id', usersController.update);
-router.delete('/:id', usersController.remove);
+router.get('/',             usersController.list);
+router.post('/',            usersController.create);
+router.put('/:id',          usersController.update);
+router.patch('/:id/deactivate', usersController.deactivate);
 
 module.exports = router;

@@ -1,10 +1,11 @@
 const db = require('../../config/database');
 const { isValidUUIDv4 } = require('../../utils/validation');
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function ensureTerminal(client, eventId, terminalId) {
   if (!terminalId) return null;
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!isUUID.test(terminalId)) return null;
+  if (!UUID_RE.test(terminalId)) return null;
   await client.query(
     `INSERT INTO terminals (id, event_id, name, last_seen_at, online)
      VALUES ($1, $2, 'Terminal Móvel', NOW(), true)
@@ -14,7 +15,7 @@ async function ensureTerminal(client, eventId, terminalId) {
   return terminalId;
 }
 
-async function validateQRCode(eventId, terminalId, validatorId, ticketCode) {
+async function validateQRCode(eventId, terminalId, validatorId, ticketCode, tenantId) {
   const normalizedCode = ticketCode.trim().toLowerCase();
   if (!isValidUUIDv4(normalizedCode)) {
     return { status: 'not_found' };
@@ -24,11 +25,12 @@ async function validateQRCode(eventId, terminalId, validatorId, ticketCode) {
     await client.query('BEGIN');
 
     const ticketRes = await client.query(
-      `SELECT id, ticket_code, display_name, batch, status, validated_at
+      `SELECT id, ticket_code, display_name, batch, status, validated_at, tenant_id
        FROM tickets
        WHERE event_id = $1 AND LOWER(ticket_code) = $2
+         AND ($3::uuid IS NULL OR tenant_id = $3)
        FOR UPDATE`,
-      [eventId, normalizedCode]
+      [eventId, normalizedCode, tenantId || null]
     );
 
     if (ticketRes.rowCount === 0) {
@@ -44,12 +46,13 @@ async function validateQRCode(eventId, terminalId, validatorId, ticketCode) {
     }
 
     const safeTerminalId = await ensureTerminal(client, eventId, terminalId);
+
     if (ticket.status === 'validated') {
       // BUG-01: ingresso já validado (reentrada sem permissão) é DUPLICATA.
       await client.query(
-        `INSERT INTO entry_logs (ticket_id, event_id, entry_type, terminal_id, validator_id, is_duplicate, synced)
-         VALUES ($1, $2, 'qrcode', $3, $4, true, true)`,
-        [ticket.id, eventId, safeTerminalId, validatorId || null]
+        `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, is_duplicate, synced)
+         VALUES ($1, $2, $3, 'qrcode', $4, $5, true, true)`,
+        [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null]
       );
       await client.query('COMMIT');
       return {
@@ -69,10 +72,10 @@ async function validateQRCode(eventId, terminalId, validatorId, ticketCode) {
     );
 
     const logRes = await client.query(
-      `INSERT INTO entry_logs (ticket_id, event_id, entry_type, terminal_id, validator_id, is_duplicate, synced, created_at)
-       VALUES ($1, $2, 'qrcode', $3, $4, false, true, $5)
+      `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, is_duplicate, synced, created_at)
+       VALUES ($1, $2, $3, 'qrcode', $4, $5, false, true, $6)
        RETURNING id`,
-      [ticket.id, eventId, safeTerminalId, validatorId || null, now]
+      [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null, now]
     );
 
     await client.query('COMMIT');
@@ -91,17 +94,18 @@ async function validateQRCode(eventId, terminalId, validatorId, ticketCode) {
   }
 }
 
-async function validateManual(eventId, terminalId, validatorId, ticketId) {
+async function validateManual(eventId, terminalId, validatorId, ticketId, tenantId) {
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
 
     const ticketRes = await client.query(
-      `SELECT id, ticket_code, display_name, batch, status, validated_at
+      `SELECT id, ticket_code, display_name, batch, status, validated_at, tenant_id
        FROM tickets
        WHERE id = $1 AND event_id = $2
+         AND ($3::uuid IS NULL OR tenant_id = $3)
        FOR UPDATE`,
-      [ticketId, eventId]
+      [ticketId, eventId, tenantId || null]
     );
 
     if (ticketRes.rowCount === 0) {
@@ -110,7 +114,6 @@ async function validateManual(eventId, terminalId, validatorId, ticketId) {
     }
 
     const ticket = ticketRes.rows[0];
-
     const safeTerminalId = await ensureTerminal(client, eventId, terminalId);
 
     if (ticket.status === 'blocked') {
@@ -121,9 +124,9 @@ async function validateManual(eventId, terminalId, validatorId, ticketId) {
     if (ticket.status === 'validated') {
       // BUG-01: ingresso já validado (reentrada sem permissão) é DUPLICATA.
       await client.query(
-        `INSERT INTO entry_logs (ticket_id, event_id, entry_type, terminal_id, validator_id, is_duplicate, synced)
-         VALUES ($1, $2, 'manual', $3, $4, true, true)`,
-        [ticket.id, eventId, safeTerminalId, validatorId || null]
+        `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, is_duplicate, synced)
+         VALUES ($1, $2, $3, 'manual', $4, $5, true, true)`,
+        [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null]
       );
       await client.query('COMMIT');
       return {
@@ -143,10 +146,10 @@ async function validateManual(eventId, terminalId, validatorId, ticketId) {
     );
 
     const logRes = await client.query(
-      `INSERT INTO entry_logs (ticket_id, event_id, entry_type, terminal_id, validator_id, is_duplicate, synced, created_at)
-       VALUES ($1, $2, 'manual', $3, $4, false, true, $5)
+      `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, is_duplicate, synced, created_at)
+       VALUES ($1, $2, $3, 'manual', $4, $5, false, true, $6)
        RETURNING id`,
-      [ticket.id, eventId, safeTerminalId, validatorId || null, now]
+      [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null, now]
     );
 
     await client.query('COMMIT');
@@ -165,7 +168,7 @@ async function validateManual(eventId, terminalId, validatorId, ticketId) {
   }
 }
 
-async function searchTickets(eventId, queryText) {
+async function searchTickets(eventId, queryText, tenantId) {
   if (!queryText || queryText.length < 3) {
     throw new Error('A busca requer no mínimo 3 caracteres.');
   }
@@ -176,14 +179,15 @@ async function searchTickets(eventId, queryText) {
     `SELECT id as ticket_id, ticket_code, display_name, batch, status
      FROM tickets
      WHERE event_id = $1 AND (display_name ILIKE $2 OR LOWER(ticket_code) LIKE $3)
+       AND ($4::uuid IS NULL OR tenant_id = $4)
      LIMIT 10`,
-    [eventId, `%${normalized}%`, `%${normalized}%`]
+    [eventId, `%${normalized}%`, `%${normalized}%`, tenantId || null]
   );
 
   return result.rows;
 }
 
-async function lookupTicket(eventId, ticketCode) {
+async function lookupTicket(eventId, ticketCode, tenantId) {
   const normalizedCode = ticketCode.trim().toLowerCase();
   if (!isValidUUIDv4(normalizedCode)) {
     return { status: 'not_found' };
@@ -192,8 +196,9 @@ async function lookupTicket(eventId, ticketCode) {
   const result = await db.query(
     `SELECT ticket_code, display_name, batch, status, validated_at
      FROM tickets
-     WHERE event_id = $1 AND LOWER(ticket_code) = $2`,
-    [eventId, normalizedCode]
+     WHERE event_id = $1 AND LOWER(ticket_code) = $2
+       AND ($3::uuid IS NULL OR tenant_id = $3)`,
+    [eventId, normalizedCode, tenantId || null]
   );
 
   if (result.rowCount === 0) {

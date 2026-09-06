@@ -1,10 +1,11 @@
 const db = require('../../config/database');
 
-async function getSnapshot(eventId, since) {
+async function getSnapshot(eventId, since, tenantId) {
   let queryText = `
     SELECT id, event_id, ticket_code, batch, display_name, status, updated_at, validated_at
     FROM tickets
     WHERE event_id = $1
+      AND ($3::uuid IS NULL OR tenant_id = $3)
   `;
   const params = [eventId];
 
@@ -12,6 +13,7 @@ async function getSnapshot(eventId, since) {
     queryText += ' AND updated_at > $2';
     params.push(new Date(since));
   }
+  params.push(tenantId || null);
 
   const result = await db.query(queryText, params);
 
@@ -22,7 +24,7 @@ async function getSnapshot(eventId, since) {
   };
 }
 
-async function processOfflineLogs(eventId, terminalId, validatorId, logs) {
+async function processOfflineLogs(eventId, terminalId, validatorId, logs, tenantId) {
   const processedLogs = [];
   const errors = [];
 
@@ -63,7 +65,7 @@ async function processOfflineLogs(eventId, terminalId, validatorId, logs) {
       }
 
       const ticketRes = await client.query(
-        'SELECT status, validated_at FROM tickets WHERE id = $1 AND event_id = $2',
+        'SELECT status, validated_at, tenant_id FROM tickets WHERE id = $1 AND event_id = $2',
         [ticket_id, eventId]
       );
 
@@ -72,6 +74,12 @@ async function processOfflineLogs(eventId, terminalId, validatorId, logs) {
       }
 
       const ticket = ticketRes.rows[0];
+
+      // Isolamento por tenant: rejeita logs de tickets de outro tenant
+      if (tenantId && ticket.tenant_id !== tenantId) {
+        throw new Error(`Ticket ${ticket_id} não pertence ao tenant do usuário.`);
+      }
+
       let isDuplicate = false;
 
       if (ticket.status === 'validated') {
@@ -86,12 +94,13 @@ async function processOfflineLogs(eventId, terminalId, validatorId, logs) {
       }
 
       await client.query(
-        `INSERT INTO entry_logs (id, ticket_id, event_id, entry_type, terminal_id, validator_id, is_duplicate, synced, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)`,
+        `INSERT INTO entry_logs (id, ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, is_duplicate, synced, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)`,
         [
           logId,
           ticket_id,
           eventId,
+          ticket.tenant_id,
           entry_type || 'qrcode',
           terminalId || null,
           validatorId || null,

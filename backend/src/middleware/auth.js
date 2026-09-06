@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const env = require('../config/env');
+const db = require('../config/database');
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
     return res.status(401).json({ error: 'Acesso negado. Token de autorização não fornecido.' });
@@ -19,8 +20,29 @@ const authMiddleware = (req, res, next) => {
     req.user = {
       id: decoded.id,
       name: decoded.name,
-      role: decoded.role
+      role: decoded.role,
+      tenant_id: decoded.tenant_id || null,
+      email: decoded.email || null,
     };
+    // tenant_id null = usuário Master (proprietário)
+    req.tenantId = req.user.tenant_id;
+
+    // Se o usuário pertence a um tenant, o tenant precisa estar ativo.
+    if (req.tenantId) {
+      try {
+        const tenantRes = await db.query(
+          'SELECT active FROM clients WHERE id = $1',
+          [req.tenantId]
+        );
+        if (tenantRes.rowCount === 0 || tenantRes.rows[0].active === false) {
+          return res.status(403).json({ error: 'tenant_suspended' });
+        }
+      } catch (dbError) {
+        console.error('Falha ao verificar tenant:', dbError.message);
+        return res.status(500).json({ error: 'Erro ao verificar a situação do cliente.' });
+      }
+    }
+
     next();
   } catch (error) {
     console.error('Falha de verificação de JWT:', error.message);
