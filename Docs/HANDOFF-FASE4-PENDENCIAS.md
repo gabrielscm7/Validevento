@@ -251,6 +251,6 @@ git push origin master
 | P6 | resend-verification | DONE | `POST /api/auth/resend-verification` (token 48h, resposta genérica); testes `T-email-3/4`; suíte 59/59 |
 | P7 | Smoke test prod | IN PROGRESS | Login do master OK via API; itens de UI/browser pendem do usuário (ver Checklist §6) |
 | P8 | Atualizar Agent.md | DONE | `Agent.md` reescrito (frontend v2, infra Railway 100%, migrações até 006, testes 59/59) |
-| P9 | Revisões opcionais | IN PROGRESS | DONE: seed removido do preDeploy (só `migrate`) e `FRONTEND_URL` definida. PENDENTE: `CORS_ORIGIN='*'` em produção (BUG-02) e confirmar remetente Resend (`EMAIL_FROM`) |
+| P9 | Revisões opcionais | IN PROGRESS | DONE: seed removido do preDeploy (só `migrate`), `FRONTEND_URL` e `CORS_ORIGIN` (→ domínio do frontend, aplica no deploy seguinte) definidas. PENDENTE: confirmar remetente Resend (`EMAIL_FROM`/domínio) — usuário vai configurar domínio de e-mail depois |
 
 Status: TODO | IN PROGRESS | DONE | BLOCKED (razão em uma linha)

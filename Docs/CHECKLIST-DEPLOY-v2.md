@@ -27,8 +27,8 @@
 - **✅ Branch enviada** para `origin/master` (`a4da41c..29c1222`) — o deploy publicado agora contém as Fases 1–3, o frontend v2 e as pendências P5/P6.
 - Variáveis definidas no serviço backend: `CORS_ORIGIN`, `CPF_LOOKUP_SALT`, `DATABASE_URL`, `FRONTEND_URL`, `JWT_EXPIRES_IN`, `JWT_SECRET`, `NODE_ENV`, `PORT`, `RESEND_API_KEY` (9).
   - ✅ `DATABASE_URL`, `JWT_SECRET`, `PORT`, `CPF_LOOKUP_SALT`, `RESEND_API_KEY`, `FRONTEND_URL` presentes.
-  - ⚠️ **`CORS_ORIGIN` está como `*` em produção** — viola o BUG-02 (origem explícita). Recomendado definir como `https://frontend-production-b15b.up.railway.app` (pendência P9).
-  - ⚠️ Confirmar remetente autorizado no Resend (`EMAIL_FROM` padrão `noreply@validevento.com` — domínio precisa estar verificado).
+  - ✅ **`CORS_ORIGIN`** redefinida para `https://frontend-production-b15b.up.railway.app` em 06/09 (corrige BUG-02; vale no deploy seguinte).
+  - ⏳ Remetente autorizado no Resend (`EMAIL_FROM` padrão `noreply@validevento.com`) — **a definir**: o usuário vai configurar o domínio de e-mail depois (06/09).
 
 > **Ações manuais realizadas em 06/09:** definidas `RESEND_API_KEY` e `CPF_LOOKUP_SALT` (gerado e guardado fora do repo) e `FRONTEND_URL` no serviço backend; `preDeployCommand` ajustado para rodar apenas `npm run migrate`; usuário master criado via SQL (ver §4); push + deploy.
 

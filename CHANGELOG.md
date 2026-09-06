@@ -42,9 +42,11 @@ docs); backend e frontend redeployados com sucesso.
 
 ### ⚠️ Pendências restantes
 
-- P7: smoke test de UI no navegador (etapa de login por API já OK).
-- P9: `CORS_ORIGIN` está como `*` em produção (recomendado apontar para o
-  frontend) e confirmar remetente autorizado no Resend (`EMAIL_FROM`).
+- P7: smoke test de UI no navegador (etapa de login por API já OK) — o usuário
+  executa os passos do Checklist §6.
+- P9: `CORS_ORIGIN` redefinida para o domínio do frontend (aplica no deploy
+  seguinte). Pendente: configurar domínio de e-mail autorizado no Resend
+  (`EMAIL_FROM`) — o usuário fará depois.
 
 ---
 
