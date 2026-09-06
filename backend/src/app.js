@@ -14,6 +14,7 @@ const dashboardRoutes  = require('./modules/dashboard/dashboard.routes');
 const eventsRoutes     = require('./modules/events/events.routes');
 const adminRoutes      = require('./modules/admin/admin.routes');
 const usersRoutes      = require('./modules/users/users.routes');
+const clientsRoutes    = require('./modules/clients/clients.routes');
 const batchesRoutes    = require('./modules/batches/batches.routes');
 
 const app = express();
@@ -117,6 +118,7 @@ app.use('/api/dashboard',  dashboardRoutes);
 app.use('/api/events',     eventsRoutes);
 app.use('/api/admin',      adminRoutes);
 app.use('/api/users',      usersRoutes);
+app.use('/api/clients',    clientsRoutes);
 app.use('/api/batches',    batchesRoutes);
 
 // 404 — Rota não encontrada
