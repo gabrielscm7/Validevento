@@ -18,6 +18,12 @@ export const useAuthStore = create(
         return data.user
       },
 
+      /** Define sessão a partir de token + user (verify-email, /me, etc.). */
+      applySession: (token, user) => {
+        if (token) localStorage.setItem(TOKEN_KEY, token)
+        set({ user, token: token || get().token, isAuthenticated: true })
+      },
+
       logout: () => {
         localStorage.removeItem(TOKEN_KEY)
         set({ user: null, token: null, isAuthenticated: false })
