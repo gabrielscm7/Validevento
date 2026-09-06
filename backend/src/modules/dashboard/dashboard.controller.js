@@ -1,132 +1,88 @@
+/**
+ * Controller de dashboard (Fase 3 — v2).
+ * Rotas escopadas por evento: req.event é anexado pelo eventAccess.
+ */
 const dashboardService = require('./dashboard.service');
+
+function sendError(res, error) {
+  return res.status(error.status || 500).json({ error: error.message });
+}
 
 async function getSummary(req, res) {
   try {
-    const { event_id } = req.query;
-    if (!event_id) return res.status(400).json({ error: 'event_id é obrigatório.' });
-    
-    const data = await dashboardService.getSummary(event_id);
+    const data = await dashboardService.getSummary(req.event.id, req.tenantId);
     return res.status(200).json(data);
   } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-}
-
-async function getBatches(req, res) {
-  try {
-    const { event_id } = req.query;
-    if (!event_id) return res.status(400).json({ error: 'event_id é obrigatório.' });
-    
-    const data = await dashboardService.getBatches(event_id);
-    return res.status(200).json(data);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error);
   }
 }
 
 async function getFlow(req, res) {
   try {
-    const { event_id } = req.query;
-    if (!event_id) return res.status(400).json({ error: 'event_id é obrigatório.' });
-    
-    const data = await dashboardService.getFlow(event_id);
+    const data = await dashboardService.getFlow(req.event.id, req.tenantId, {
+      date: req.query.date,
+    });
     return res.status(200).json(data);
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error);
+  }
+}
+
+async function getBatches(req, res) {
+  try {
+    const data = await dashboardService.getBatches(req.event.id, req.tenantId);
+    return res.status(200).json(data);
+  } catch (error) {
+    return sendError(res, error);
   }
 }
 
 async function getAlerts(req, res) {
   try {
-    const { event_id } = req.query;
-    if (!event_id) return res.status(400).json({ error: 'event_id é obrigatório.' });
-    
-    const data = await dashboardService.getAlerts(event_id);
+    const data = await dashboardService.getAlerts(req.event.id, req.tenantId, {
+      limit: req.query.limit,
+    });
     return res.status(200).json(data);
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error);
   }
 }
 
 async function getTerminals(req, res) {
   try {
-    const { event_id } = req.query;
-    if (!event_id) return res.status(400).json({ error: 'event_id é obrigatório.' });
-    
-    const data = await dashboardService.getTerminals(event_id);
+    const data = await dashboardService.getTerminals(req.event.id, req.tenantId);
     return res.status(200).json(data);
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error);
   }
 }
 
 async function getLiveFeed(req, res) {
   try {
-    const { event_id } = req.query;
-    if (!event_id) return res.status(400).json({ error: 'event_id é obrigatório.' });
-    
-    const data = await dashboardService.getLiveFeed(event_id);
-    return res.status(200).json(data);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-}
-
-async function exportCSV(req, res) {
-  try {
-    const { event_id } = req.query;
-    if (!event_id) return res.status(400).json({ error: 'event_id é obrigatório.' });
-
-    const logs = await dashboardService.getExportData(event_id);
-
-    // Gerar string CSV
-    let csvContent = 'id_log,ticket_code,timestamp,tipo_entrada,validador,terminal,duplicata\n';
-    
-    for (const log of logs) {
-      const row = [
-        log.id_log,
-        log.ticket_code,
-        log.timestamp ? new Date(log.timestamp).toISOString() : '',
-        log.entry_type,
-        `"${(log.validator_name || '').replace(/"/g, '""')}"`,
-        `"${(log.terminal_name || '').replace(/"/g, '""')}"`,
-        log.is_duplicate ? 'true' : 'false'
-      ].join(',');
-      csvContent += row + '\n';
-    }
-
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename=logs-evento-${event_id}.csv`);
-    return res.status(200).send(csvContent);
-  } catch (error) {
-    console.error('Erro na exportação de logs:', error.message);
-    return res.status(500).json({ error: 'Erro ao gerar exportação de logs em CSV.' });
-  }
-}
-
-async function getTickets(req, res) {
-  try {
-    const { event_id, search, status, batch, page = 1, limit = 50 } = req.query;
-    if (!event_id) return res.status(400).json({ error: 'event_id é obrigatório.' });
-
-    const data = await dashboardService.getTickets(event_id, {
-      search, status, batch,
-      page: parseInt(page, 10),
-      limit: parseInt(limit, 10)
+    const data = await dashboardService.getLiveFeed(req.event.id, req.tenantId, {
+      limit: req.query.limit,
     });
     return res.status(200).json(data);
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error);
+  }
+}
+
+async function getSpeed(req, res) {
+  try {
+    const data = await dashboardService.getSpeed(req.event.id, req.tenantId);
+    return res.status(200).json(data);
+  } catch (error) {
+    return sendError(res, error);
   }
 }
 
 module.exports = {
   getSummary,
-  getBatches,
   getFlow,
+  getBatches,
   getAlerts,
   getTerminals,
   getLiveFeed,
-  exportCSV,
-  getTickets
+  getSpeed,
 };

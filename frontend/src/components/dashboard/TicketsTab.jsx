@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../../services/api'
-import { Input } from '../ui/input'
 import {
   Select,
   SelectContent,
@@ -51,7 +50,6 @@ export default function TicketsTab({ eventId }) {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [batchFilter, setBatchFilter] = useState('')
   const [batchOptions, setBatchOptions] = useState([])
@@ -61,7 +59,7 @@ export default function TicketsTab({ eventId }) {
 
   useEffect(() => {
     if (!eventId) return
-    api.get('/api/dashboard/batches', { params: { event_id: eventId } })
+    api.get(`/api/events/${eventId}/dashboard/batches`)
       .then(({ data }) => setBatchOptions(data))
       .catch(() => {})
   }, [eventId])
@@ -71,21 +69,20 @@ export default function TicketsTab({ eventId }) {
     setLoading(true)
     setError('')
     try {
-      const params = { event_id: eventId, page: p, limit: 30 }
-      if (search) params.search = search
+      const params = { page: p, limit: 30 }
       if (statusFilter) params.status = statusFilter
       if (batchFilter) params.batch = batchFilter
-      const { data } = await api.get('/api/dashboard/tickets', { params })
-      setTickets(data.tickets)
+      const { data } = await api.get(`/api/events/${eventId}/tickets`, { params })
+      setTickets(data.data)
       setTotal(data.total)
       setPage(data.page)
-      setTotalPages(data.totalPages)
+      setTotalPages(data.pages)
     } catch (e) {
       setError(e.response?.data?.error ?? 'Erro ao carregar ingressos')
     } finally {
       setLoading(false)
     }
-  }, [eventId, search, statusFilter, batchFilter, page])
+  }, [eventId, statusFilter, batchFilter, page])
 
   useEffect(() => {
     if (!eventId) return
@@ -96,11 +93,6 @@ export default function TicketsTab({ eventId }) {
     })()
     return () => { mounted = false }
   }, [eventId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function handleSearch() {
-    setPage(1)
-    fetchTickets(1)
-  }
 
   function handleStatusChange(value) {
     setStatusFilter(value)
@@ -142,13 +134,6 @@ export default function TicketsTab({ eventId }) {
           Ingressos <span className="text-muted-foreground font-normal">({total} total)</span>
         </h3>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          <Input
-            placeholder="Buscar por código ou nome…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            className="w-full sm:w-56 h-9 text-xs"
-          />
           <Select value={statusFilter} onValueChange={handleStatusChange}>
             <SelectTrigger className="w-[140px] h-9 text-xs">
               <SelectValue placeholder="Status" />

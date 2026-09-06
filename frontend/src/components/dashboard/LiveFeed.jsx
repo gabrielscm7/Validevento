@@ -6,6 +6,7 @@ function formatTime(isoStr) {
 const ENTRY_TYPE_LABEL = {
   qrcode: { label: 'QRCode', cls: 'badge-blue' },
   manual: { label: 'Manual', cls: 'badge-slate' },
+  master: { label: 'Master', cls: 'badge-orange' },
 }
 
 export function LiveFeed({ data, loading }) {
@@ -26,13 +27,13 @@ export function LiveFeed({ data, loading }) {
 
   return (
     <div className="card p-5">
-      <h3 className="text-sm font-semibold text-foreground mb-4">Últimas entradas</h3>
+      <h3 className="text-sm font-semibold text-foreground mb-4">Validações ao Vivo</h3>
       {entries.length === 0 ? (
-        <p className="text-muted-foreground text-sm text-center py-6">Nenhuma entrada registrada</p>
+        <p className="text-muted-foreground text-sm text-center py-6">Nenhuma validação registrada</p>
       ) : (
         <div className="space-y-2 max-h-80 overflow-y-auto">
           {entries.map((e) => {
-            const typeCfg = ENTRY_TYPE_LABEL[e.entry_type] ?? { label: e.entry_type, cls: 'badge-slate' }
+            const typeCfg = ENTRY_TYPE_LABEL[e.entry_type] ?? { label: e.entry_type || '—', cls: 'badge-slate' }
             return (
               <div key={e.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-secondary/60">
                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
@@ -42,9 +43,11 @@ export function LiveFeed({ data, loading }) {
                   <p className="text-sm font-medium text-foreground truncate">
                     {e.display_name ?? '—'}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground truncate">
                     {e.ticket_code}
                     {e.batch ? ` · ${e.batch}` : ''}
+                    {e.origin ? ` · ${e.origin}` : ''}
+                    {e.validator_name ? ` · ${e.validator_name}` : ''}
                     {e.terminal_name ? ` · ${e.terminal_name}` : ''}
                   </p>
                 </div>

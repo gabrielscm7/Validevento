@@ -22,7 +22,7 @@ export default function TicketsTab({ eventId }) {
   useEffect(() => {
     if (!eventId) return
     let mounted = true
-    api.get('/api/dashboard/batches', { params: { event_id: eventId } })
+    api.get(`/api/events/${eventId}/dashboard/batches`)
       .then(({ data }) => { if (mounted) setBatchOptions(data) })
       .catch(() => {})
     return () => { mounted = false }
@@ -31,7 +31,7 @@ export default function TicketsTab({ eventId }) {
   useEffect(() => {
     if (!eventId || mode !== 'batch' || !batchName.trim()) return
     let cancelled = false
-    api.get('/api/dashboard/tickets', { params: { event_id: eventId, batch: batchName.trim(), limit: 1 } })
+    api.get(`/api/events/${eventId}/tickets`, { params: { batch: batchName.trim(), limit: 1 } })
       .then(({ data }) => { if (!cancelled) setPreview({ total: data.total }) })
       .catch(() => {})
     return () => { cancelled = true }

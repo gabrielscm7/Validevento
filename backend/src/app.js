@@ -131,7 +131,7 @@ app.use('/api/auth',       authLimiter, authRoutes);
 app.use('/api/import',     importRoutes);
 app.use('/api/sync',       syncRoutes);
 app.use('/api/validation', validationRoutes);
-app.use('/api/dashboard',  dashboardRoutes);
+app.use('/api/events',     dashboardRoutes); // v2: /api/events/:eventId/dashboard/*
 app.use('/api/events',     eventsRoutes);
 app.use('/api/events',     eventConfigRoutes);
 app.use('/api/events',     eventTeamRoutes);

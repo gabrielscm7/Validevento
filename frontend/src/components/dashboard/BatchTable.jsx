@@ -27,6 +27,7 @@ export function BatchTable({ data, loading }) {
                 <th className="text-left pb-2 font-medium">Lote</th>
                 <th className="text-right pb-2 font-medium">Total</th>
                 <th className="text-right pb-2 font-medium">Entradas</th>
+                <th className="text-right pb-2 font-medium">Bloqueados</th>
                 <th className="text-right pb-2 font-medium">%</th>
               </tr>
             </thead>
@@ -36,13 +37,14 @@ export function BatchTable({ data, loading }) {
                   <td className="py-2.5 font-medium">{r.batch}</td>
                   <td className="py-2.5 text-right">{r.total}</td>
                   <td className="py-2.5 text-right">{r.validated}</td>
+                  <td className="py-2.5 text-right">{r.blocked}</td>
                   <td className="py-2.5 text-right">
                     <span className={
-                      r.occupancy_percentage >= 80 ? 'text-emerald-600 dark:text-emerald-300' :
-                      r.occupancy_percentage >= 50 ? 'text-amber-600 dark:text-amber-300' :
+                      (r.pct ?? 0) >= 80 ? 'text-emerald-600 dark:text-emerald-300' :
+                      (r.pct ?? 0) >= 50 ? 'text-amber-600 dark:text-amber-300' :
                       'text-muted-foreground'
                     }>
-                      {r.occupancy_percentage?.toFixed(1)}%
+                      {Number(r.pct ?? 0).toFixed(1)}%
                     </span>
                   </td>
                 </tr>

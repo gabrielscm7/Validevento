@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState(null)
   const [terminals, setTerminals] = useState(null)
   const [liveFeed, setLiveFeed] = useState(null)
+  const [speed, setSpeed] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [exporting, setExporting] = useState(false)
@@ -38,13 +39,14 @@ export default function Dashboard() {
     async function fetchAll() {
       setError(null)
       try {
-        const [s, b, f, a, t, l] = await Promise.all([
-          api.get('/api/dashboard/summary', { params: { event_id: eventId } }),
-          api.get('/api/dashboard/batches', { params: { event_id: eventId } }),
-          api.get('/api/dashboard/flow', { params: { event_id: eventId } }),
-          api.get('/api/dashboard/alerts', { params: { event_id: eventId } }),
-          api.get('/api/dashboard/terminals', { params: { event_id: eventId } }),
-          api.get('/api/dashboard/live-feed', { params: { event_id: eventId } }),
+        const [s, b, f, a, t, l, sp] = await Promise.all([
+          api.get(`/api/events/${eventId}/dashboard/summary`),
+          api.get(`/api/events/${eventId}/dashboard/batches`),
+          api.get(`/api/events/${eventId}/dashboard/flow`),
+          api.get(`/api/events/${eventId}/dashboard/alerts`),
+          api.get(`/api/events/${eventId}/dashboard/terminals`),
+          api.get(`/api/events/${eventId}/dashboard/live-feed`),
+          api.get(`/api/events/${eventId}/dashboard/speed`),
         ])
         if (!mounted) return
         setSummary(s.data)
@@ -53,6 +55,7 @@ export default function Dashboard() {
         setAlerts(a.data)
         setTerminals(t.data)
         setLiveFeed(l.data)
+        setSpeed(sp.data)
       } catch (e) {
         if (!mounted) return
         setError(e.response?.data?.error ?? 'Erro ao carregar dashboard')
@@ -73,7 +76,7 @@ export default function Dashboard() {
     try {
       await api.post('/api/admin/reset', { event_id: eventId })
       setSummary(null); setBatches(null); setFlow(null)
-      setAlerts(null); setTerminals(null); setLiveFeed(null)
+      setAlerts(null); setTerminals(null); setLiveFeed(null); setSpeed(null)
       setError('Dados resetados. Recarregue a página para ver.')
     } catch {
       setError('Erro ao resetar dados.')
@@ -86,14 +89,13 @@ export default function Dashboard() {
     if (!eventId) return
     setExporting(true)
     try {
-      const res = await api.get('/api/dashboard/export', {
-        params: { event_id: eventId },
+      const res = await api.get(`/api/events/${eventId}/reports/csv`, {
         responseType: 'blob',
       })
       const url = window.URL.createObjectURL(new Blob([res.data]))
       const a = document.createElement('a')
       a.href = url
-      a.download = `logs-evento-${eventId.slice(0, 8)}.csv`
+      a.download = `log-${eventId.slice(0, 8)}.csv`
       a.click()
       window.URL.revokeObjectURL(url)
     } catch {
@@ -156,6 +158,30 @@ export default function Dashboard() {
 
         <SummaryCards data={summary} loading={loading} />
 
+        {speed && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="card p-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Velocidade média</p>
+              <p className="text-2xl font-bold mt-1 text-foreground">{speed.avg_gap_seconds ?? '—'}s</p>
+            </div>
+            <div className="card p-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pico de fluxo</p>
+              <p className="text-2xl font-bold mt-1 text-foreground">{speed.peak_hour ?? '—'}</p>
+              <p className="text-xs text-muted-foreground">{speed.peak_count ?? 0} entradas</p>
+            </div>
+            <div className="card p-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Meta</p>
+              <p className="text-2xl font-bold mt-1 text-foreground">{speed.target_seconds ?? '—'}s</p>
+            </div>
+            <div className="card p-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Dentro da meta</p>
+              <p className="text-2xl font-bold mt-1 text-foreground">
+                {speed.within_target_pct != null ? `${speed.within_target_pct}%` : '—'}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <EntryChart data={flow} loading={loading} />
           <BatchTable data={batches} loading={loading} />
@@ -188,6 +214,7 @@ export default function Dashboard() {
                       <p className="text-sm font-medium text-foreground truncate">{t.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {t.online ? 'Online' : 'Offline'}
+                        {t.validations_today != null ? ` · ${t.validations_today} validações hoje` : ''}
                         {t.last_sync_at ? ` · Sync: ${new Date(t.last_sync_at).toLocaleTimeString('pt-BR')}` : ''}
                       </p>
                     </div>

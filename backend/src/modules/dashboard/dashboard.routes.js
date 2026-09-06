@@ -1,24 +1,62 @@
-const express = require('express');
+const { Router } = require('express');
 const dashboardController = require('./dashboard.controller');
 const authMiddleware = require('../../middleware/auth');
-const requireRole = require('../../middleware/roles');
+const { eventAccess, requireEventRole } = require('../../middleware/eventAccess');
 
-const router = express.Router();
+const router = Router();
 
-// Todas as rotas de dashboard exigem autenticação
+// Todas as rotas exigem autenticação
 router.use(authMiddleware);
 
-// Endpoints acessíveis por Administradores e Supervisores
-router.get('/summary', requireRole('admin', 'supervisor'), dashboardController.getSummary);
-router.get('/batches', requireRole('admin', 'supervisor'), dashboardController.getBatches);
-router.get('/flow', requireRole('admin', 'supervisor'), dashboardController.getFlow);
-router.get('/alerts', requireRole('admin', 'supervisor'), dashboardController.getAlerts);
-router.get('/terminals', requireRole('admin', 'supervisor'), dashboardController.getTerminals);
-router.get('/live-feed', requireRole('admin', 'supervisor'), dashboardController.getLiveFeed);
+// GET /api/events/:eventId/dashboard/* — supervisor/admin/master
+// (role EFETIVA considera role_override da equipe)
+router.get(
+  '/:eventId/dashboard/summary',
+  eventAccess,
+  requireEventRole('supervisor', 'admin', 'master'),
+  dashboardController.getSummary
+);
 
-router.get('/tickets', requireRole('admin', 'supervisor'), dashboardController.getTickets);
+router.get(
+  '/:eventId/dashboard/flow',
+  eventAccess,
+  requireEventRole('supervisor', 'admin', 'master'),
+  dashboardController.getFlow
+);
 
-// Exportação em CSV (exclusivo para Administrador conforme PRD RF-05 e RF-06)
-router.get('/export', requireRole('admin'), dashboardController.exportCSV);
+router.get(
+  '/:eventId/dashboard/batches',
+  eventAccess,
+  requireEventRole('supervisor', 'admin', 'master'),
+  dashboardController.getBatches
+);
+
+router.get(
+  '/:eventId/dashboard/alerts',
+  eventAccess,
+  requireEventRole('supervisor', 'admin', 'master'),
+  dashboardController.getAlerts
+);
+
+router.get(
+  '/:eventId/dashboard/terminals',
+  eventAccess,
+  requireEventRole('supervisor', 'admin', 'master'),
+  dashboardController.getTerminals
+);
+
+router.get(
+  '/:eventId/dashboard/live-feed',
+  eventAccess,
+  requireEventRole('supervisor', 'admin', 'master'),
+  dashboardController.getLiveFeed
+);
+
+router.get(
+  '/:eventId/dashboard/speed',
+  eventAccess,
+  requireEventRole('supervisor', 'admin', 'master'),
+  dashboardController.getSpeed
+);
 
 module.exports = router;
