@@ -35,7 +35,11 @@ app.use(helmet({
 }));
 
 // ── Rate limiting ──
-const generalLimiter = rateLimit({
+// Em testes o limiter é desativado para não interferir nas chamadas rápidas
+const isTest = env.nodeEnv === 'test';
+const noLimit = (req, res, next) => next();
+
+const generalLimiter = isTest ? noLimit : rateLimit({
   windowMs: 60 * 1000,
   max: 200,
   standardHeaders: true,
@@ -43,7 +47,7 @@ const generalLimiter = rateLimit({
   message: { error: 'Muitas requisições. Aguarde um momento.' },
 });
 
-const authLimiter = rateLimit({
+const authLimiter = isTest ? noLimit : rateLimit({
   windowMs: 5 * 60 * 1000,
   max: 20,
   standardHeaders: true,
@@ -143,33 +147,36 @@ app.use((err, req, res, next) => {
 });
 
 // ────────────────────────────────────────────────
-// Iniciar o servidor
+// Iniciar o servidor (apenas quando executado diretamente)
+// Ao ser importado (ex.: testes via supertest) apenas exporta o app.
 // ────────────────────────────────────────────────
-const server = app.listen(env.port, () => {
-  console.log('===================================================');
-  console.log(` Servidor Validevento rodando na porta ${env.port}`);
-  console.log(` Modo: ${env.nodeEnv}`);
-  console.log(` CORS Permitido para: ${env.corsOrigin}`);
-  console.log('===================================================');
+if (require.main === module) {
+  const server = app.listen(env.port, () => {
+    console.log('===================================================');
+    console.log(` Servidor Validevento rodando na porta ${env.port}`);
+    console.log(` Modo: ${env.nodeEnv}`);
+    console.log(` CORS Permitido para: ${env.corsOrigin}`);
+    console.log('===================================================');
 
-  database.testConnection().catch(() => {
-    console.warn(
-      'AVISO: Banco de dados indisponível na inicialização. Verifique o Docker.'
-    );
+    database.testConnection().catch(() => {
+      console.warn(
+        'AVISO: Banco de dados indisponível na inicialização. Verifique o Docker.'
+      );
+    });
   });
-});
 
-// Graceful shutdown
-function shutdown(signal) {
-  console.log(`\n🛑 Sinal ${signal} recebido. Encerrando graciosamente...`);
-  server.close(() => {
-    console.log('Servidor HTTP fechado.');
-    process.exit(0);
-  });
-  setTimeout(() => process.exit(1), 10000);
+  // Graceful shutdown
+  function shutdown(signal) {
+    console.log(`\n🛑 Sinal ${signal} recebido. Encerrando graciosamente...`);
+    server.close(() => {
+      console.log('Servidor HTTP fechado.');
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(1), 10000);
+  }
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
-
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
 
 module.exports = app;

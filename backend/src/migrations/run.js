@@ -2,6 +2,15 @@ const fs = require('fs');
 const path = require('path');
 const { pool, testConnection } = require('../config/database');
 
+// Ordena por prefixo numérico (01 < 02 < 003 < 03) preservando arquivos com
+// larguras diferentes de numeração. Sem isso, '003_*' ordenaria antes de '01_*'.
+function compareMigrationFiles(a, b) {
+  const na = parseInt(a, 10);
+  const nb = parseInt(b, 10);
+  if (na !== nb) return na - nb;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 async function runMigrations() {
   console.log('Iniciando migrações...');
   try {
@@ -10,7 +19,7 @@ async function runMigrations() {
     const migrationsDir = path.join(__dirname, '../../migrations');
     const files = fs.readdirSync(migrationsDir)
       .filter((f) => f.endsWith('.sql'))
-      .sort();
+      .sort(compareMigrationFiles);
 
     for (const file of files) {
       const filePath = path.join(migrationsDir, file);
