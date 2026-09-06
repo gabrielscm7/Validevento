@@ -381,8 +381,9 @@ async function buildCsv(eventId, tenantId) {
     r.checkout_at ? new Date(r.checkout_at).toISOString() : '',
   ]);
 
-  const body = [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\n');
-  return `\uFEFF${body}\n`;
+  const headerLine = header.join(',');
+  const bodyLines = rows.map((row) => row.map(csvCell).join(',')).join('\n');
+  return `\uFEFF${headerLine}\n${bodyLines}\n`;
 }
 
 // ────────────────────────────────────────────────

@@ -261,7 +261,7 @@ async function getLiveFeed(eventId, tenantId, { limit = 20 } = {}) {
   const result = await db.query(
     `SELECT
        l.id,
-       l.ticket_code,
+       t.ticket_code,
        COALESCE(t.display_name, l.beneficiary) AS display_name,
        t.batch,
        l.entry_type,
