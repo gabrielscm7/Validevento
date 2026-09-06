@@ -51,7 +51,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        // No docker-compose de dev aponta para o serviço 'backend'; local usa localhost:3000
+        target: process.env.VITE_PROXY_TARGET || 'http://localhost:3000',
         changeOrigin: true,
       },
     },
