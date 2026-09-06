@@ -47,9 +47,15 @@ const authLimiter = rateLimit({
 app.use(generalLimiter);
 
 // Configuração de CORS
+// BUG-02: origem vem de CORS_ORIGIN (nunca '*' em produção). Suporta lista separada por vírgula.
+function resolveCorsOrigin(value) {
+  if (!value) return false; // sem origem configurada → bloqueia origens cruzadas
+  if (value === '*') return '*';
+  return value.split(',').map((s) => s.trim()).filter(Boolean);
+}
 const corsOptions = {
-  origin: env.corsOrigin === '*' ? '*' : env.corsOrigin.split(',').map((s) => s.trim()),
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  origin: resolveCorsOrigin(env.corsOrigin),
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma'],
   credentials: true,
   maxAge: 86400,
