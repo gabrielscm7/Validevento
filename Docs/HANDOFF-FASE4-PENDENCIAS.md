@@ -11,23 +11,46 @@
 
 ---
 
+## 0. Resultado da sessão de tratamento (06/09/2026)
+
+> **Produção no ar.** Backend e frontend deployados em Railway no commit
+> `fe255c3` (backend `9084501b`, frontend `98ce64c6` — ambos SUCCESS).
+> `/health` e `/api/health` → 200 com `database: connected`.
+>
+> **Resolvido nesta sessão:** P1 (deploy + push), P2 (`RESEND_API_KEY`),
+> P3 (`CPF_LOOKUP_SALT` — gerado e guardado **fora do repo**), P4 (migrations
+> `01→006` + usuário master via SQL, login validado), P5 (`banner_url`/
+> `logo_url` — migration `006_event_branding` + create/update), P6
+> (`POST /api/auth/resend-verification`), P8 (`Agent.md`), e parte do P9
+> (seed removido do preDeploy — agora só `npm run migrate`; `FRONTEND_URL` e
+> `CORS_ORIGIN` → domínio do frontend).
+>
+> **Ainda em aberto (próxima sessão):**
+> - **P7 (IN PROGRESS)** — smoke test de UI no navegador pelo usuário
+>   (login `/master`, cliente+cotas, admin+e-mail, evento+importação CSV,
+>   `/terminal/:eventId` + PWA, dashboard/relatórios). Login por API já OK.
+> - **P9 (IN PROGRESS)** — configurar domínio de e-mail autorizado no Resend
+>   (`EMAIL_FROM`) — o usuário vai definir depois.
+
+---
+
 ## 1. Estado atual (o que já está pronto)
 
 | Área | Estado |
 |---|---|
 | Frontend Fase 4 (Partes A→I) | ✅ Concluído e commitado (9 commits em `master`) |
 | Testes frontend (Vitest) | ✅ 16/16 passed (`npm test`) |
-| Testes backend (Jest) | ✅ 56/56 passed |
+| Testes backend (Jest) | ✅ 59/59 passed (13 suítes — inclui testes de P5/P6) |
 | Lint frontend | ✅ 0 problemas (`npm run lint`) |
 | Build frontend + PWA | ✅ OK (`npm run build`) |
-| Backend (Fases 1–3) | ✅ Testado; **nenhum arquivo backend alterado** na Fase 4 |
-| Docs entregues | `Docs/CHECKLIST-DEPLOY-v2.md`, `CHANGELOG.md` (v2.3.0) |
+| Backend (Fases 1–3 + P5/P6) | ✅ Testado; Fase 4 não alterou backend; P5/P6 o fizeram (commitado e deployado) |
+| Docs entregues | `Docs/CHECKLIST-DEPLOY-v2.md`, `CHANGELOG.md` (v2.3.0/v2.3.1) |
 
 ### Git
 - Branch local: `master`
-- **Enviada para `origin/master`** em 06/09/2026 (`a4da41c..29c1222` + docs posteriores)
+- **Sincronizada com `origin/master`** em 06/09/2026 (último commit `fe255c3`)
 - Remote: `https://github.com/gabrielscm7/Validevento.git`
-- Últimos commits locais: pendências P1–P9 desta sessão (P5, P6, fix `/recuperar`, Agent.md, docs)
+- Últimos commits: pendências desta sessão (P5 `6a188e1`, P6 `d279a01`, fix `/recuperar` `29c1222`, P8 `0222c7b`, docs/handoff `53f2f51`/`11c5d50`/`fe255c3`)
 
 ### Infra publicada (verificada via Railway MCP, env `production`)
 - Projeto Railway: `validevento` (`6b703342-…`) · workspace `gabrielscm7's Projects`
@@ -243,7 +266,7 @@ git push origin master
 
 | # | Pendência | Status | Observação |
 |---|---|---|---|
-| P1 | Deploy backend + push | DONE | Push `a4da41c..29c1222`; deploy backend `5c72fc3b` SUCCESS (runtime antes caía sem logs); frontend `e41cab83` SUCCESS; `/health` e `/api/health` → 200 |
+| P1 | Deploy backend + push | DONE | Push `a4da41c..fe255c3`; deploy backend `9084501b` e frontend `98ce64c6` SUCCESS (runtime antes caía sem logs); `/health` e `/api/health` → 200 |
 | P2 | RESEND_API_KEY | DONE | Definida no serviço backend (Railway); valor veio do usuário (não registrado) |
 | P3 | CPF_LOOKUP_SALT | DONE | Salt 96 hex gerado e guardado fora do repo (ver segredos de prod); definido antes de qualquer usuário v2 |
 | P4 | Migrations + master | DONE | Migrations 01→006 aplicadas (audit DELETE=false; `banner_url`/`logo_url` OK); master `gabrielscm@gmail.com` CPF `998.834.062-15` criado via SQL com o salt definitivo; login validado |
@@ -251,6 +274,6 @@ git push origin master
 | P6 | resend-verification | DONE | `POST /api/auth/resend-verification` (token 48h, resposta genérica); testes `T-email-3/4`; suíte 59/59 |
 | P7 | Smoke test prod | IN PROGRESS | Login do master OK via API; itens de UI/browser pendem do usuário (ver Checklist §6) |
 | P8 | Atualizar Agent.md | DONE | `Agent.md` reescrito (frontend v2, infra Railway 100%, migrações até 006, testes 59/59) |
-| P9 | Revisões opcionais | IN PROGRESS | DONE: seed removido do preDeploy (só `migrate`), `FRONTEND_URL` e `CORS_ORIGIN` (→ domínio do frontend, aplica no deploy seguinte) definidas. PENDENTE: confirmar remetente Resend (`EMAIL_FROM`/domínio) — usuário vai configurar domínio de e-mail depois |
+| P9 | Revisões opcionais | IN PROGRESS | DONE: seed removido do preDeploy (só `migrate`), `FRONTEND_URL` e `CORS_ORIGIN` (→ domínio do frontend) definidas. PENDENTE: confirmar remetente Resend (`EMAIL_FROM`/domínio) — usuário vai configurar domínio de e-mail depois |
 
 Status: TODO | IN PROGRESS | DONE | BLOCKED (razão em uma linha)
