@@ -7,7 +7,7 @@ import { saveMeta } from '../services/localDB'
  * é espelhada no IndexedDB (meta 'event_config'/'master_ticket') para o
  * terminal operar offline com a mesma configuração.
  */
-export const useEventStore = create((set, get) => ({
+export const useEventStore = create((set) => ({
   activeEvent: null,
   eventConfig: null,
   masterTicket: null,
