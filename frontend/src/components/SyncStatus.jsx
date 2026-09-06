@@ -1,56 +1,63 @@
-import { useOffline }   from '../hooks/useOffline'
+import { useOffline } from '../hooks/useOffline'
 import { useSyncStore } from '../store/syncStore'
+import { formatTime } from '../lib/format'
 
-function formatTime(isoStr) {
-  if (!isoStr) return '—'
-  const d = new Date(isoStr)
-  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+function formatSync(iso) {
+  if (!iso) return '—'
+  // Aceita "HH:MM" pronto ou ISO
+  if (/^\d{1,2}:\d{2}$/.test(iso)) return iso
+  return formatTime(iso)
 }
 
-export function SyncStatus({ showForce = false }) {
-  const { isOnline } = useOffline()
-  const { lastSyncAt, isSyncing, syncError, isStale, sync } = useSyncStore()
+/**
+ * Badge de status de sincronização do terminal.
+ * Props opcionais permitem override em testes/preview.
+ */
+export function SyncStatus({ showForce = false, isOnline: onlineProp, lastSyncAt: lastSyncProp, onSync }) {
+  const { isOnline: hookOnline, syncNow } = useOffline()
+  const { lastSyncAt: hookLastSync, isSyncing } = useSyncStore()
 
-  const stale = isStale()
+  const isOnline = onlineProp !== undefined ? onlineProp : hookOnline
+  const lastSyncAt = lastSyncProp !== undefined ? lastSyncProp : hookLastSync
+
+  const handleSync = async () => {
+    if (onSync) return onSync()
+    await syncNow()
+  }
+
+  const syncLabel = lastSyncAt ? formatSync(lastSyncAt) : '—'
 
   return (
-    <div className="flex items-center gap-2 text-xs">
+    <div className="flex items-center gap-2" data-testid="sync-status">
       <span
-        className={`w-2 h-2 rounded-full flex-shrink-0 ${
-          !isOnline ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'
-        }`}
+        className={`dot ${isOnline ? 'dot-green pulse' : 'dot-yellow'}`}
+        style={isSyncing ? { animation: 'vvspin .7s linear infinite', borderRadius: 0 } : undefined}
       />
-
-      <span className={
-        !isOnline ? 'text-red-600 dark:text-red-400' :
-        stale     ? 'text-amber-600 dark:text-amber-400' :
-                    'text-muted-foreground'
-      }>
-        {!isOnline
-          ? `Modo offline — último sync: ${formatTime(lastSyncAt)}`
-          : stale
-          ? `Base desatualizada — sync: ${formatTime(lastSyncAt)}`
-          : lastSyncAt
-          ? `Sync: ${formatTime(lastSyncAt)}`
-          : 'Sincronizando...'}
+      <span
+        style={{
+          fontSize: 12,
+          color: isOnline ? 'rgba(255,255,255,.85)' : '#eab308',
+          whiteSpace: 'nowrap',
+        }}
+        onClick={() => !isSyncing && isOnline && handleSync()}
+        role={isOnline ? 'button' : undefined}
+        title={isOnline ? 'Toque para sincronizar agora' : 'Sem conexão'}
+      >
+        {isSyncing ? 'sincronizando…' : isOnline ? `Online · sync ${syncLabel}` : `offline · sync ${syncLabel}`}
       </span>
 
-      {syncError && (
-        <span className="text-red-600 dark:text-red-400 truncate max-w-[120px]" title={syncError}>
-          ⚠ Erro
-        </span>
-      )}
-
-      {showForce && isOnline && (
+      {showForce && isOnline && !isSyncing && (
         <button
-          onClick={() => sync()}
-          disabled={isSyncing}
-          className="btn-ghost py-0.5 px-2 text-xs ml-1"
-          title="Sincronizar agora"
+          type="button"
+          className="btn-ghost"
+          style={{ fontSize: 11, padding: '2px 8px', color: 'rgba(255,255,255,.6)' }}
+          onClick={() => { handleSync() }}
         >
-          {isSyncing ? '⟳ Sync…' : '⟳ Sync'}
+          ⟳ sincronizar
         </button>
       )}
     </div>
   )
 }
+
+export default SyncStatus
