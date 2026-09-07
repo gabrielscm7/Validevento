@@ -75,6 +75,7 @@
 2. **Resend de ativação** — ✅ **implementado** (06/09): `POST /api/auth/resend-verification` (token novo 48h, resposta genérica). A tela `ActivateAccount` já consome o endpoint.
 3. **Dashboard do Master** usa dados reais dos endpoints existentes (`/api/clients`, `/api/clients/:id/usage`, `/api/events`, `/api/users`). Sem endpoint de auditoria global por cliente, a aba "Auditoria" do `ClientDetail` agrega `reports/audit` dos eventos do tenant.
 4. **Link de recuperação** — ✅ corrigido (06/09): e-mail aponta para `/recuperar-senha` (rota real do frontend), não mais `/recuperar`.
+5. **BUG UX (registrado, sem correção por ora): `EventDashboard` (Supervisor) fica em loading infinito + polling a cada 30s quando o usuário não pertence à equipe do evento.** Todos os endpoints de `/api/events/:id/*` retornam `403 not_in_event_team` (por design), mas a página trata como erro genérico de fetch: `event` fica `null` → `if (loading || !event) return <PageLoader/>` nunca sai; e `useDashboardData` continua o polling mesmo sem o evento. **Correção sugerida:** renderizar `ErrorNotice` com o `403` + botão voltar quando o `getEvent` falhar, e não iniciar o polling enquanto não houver evento. Acesso real é liberado adicionando o usuário à equipe (tela Equipe do admin) — sem isso o acesso é negado por design (RF acesso por equipe).
 
 ---
 
