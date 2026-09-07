@@ -8,6 +8,30 @@
 > **Contexto de segurança:** toda pendência que mexe no backend (Railway,
 > variáveis, migrations, banco de produção) exige aval explícito do usuário
 > antes de executar. Nunca rode `npm run seed` em produção sem confirmar.
+> **Segredos nunca no repo público**: tokens/API keys ficam em
+> `C:\Users\Mion\AppData\Local\Temp\opencode\*.txt` (fora do workspace).
+
+---
+
+## 0b. Resultado da sessão de 07/09/2026 — Domínio próprio + Resend (v2.4.0)
+
+> **Domínio `validevento.com.br` no ar** (Cloudflare → Railway). Frontend
+> canônico em **`https://www.validevento.com.br`** (apex redireciona 301);
+> backend em **`https://api.validevento.com.br`**. Detalhes em
+> `Docs/CHECKLIST-DEPLOY-v2.md` e `CHANGELOG.md` (v2.4.0).
+>
+> **Resolvido nesta sessão:**
+> - **Domínio/DNS**: custom domains Railway `validevento.com.br`, `www.` e `api.`
+>   todos `verified` (CNAME + TXT `_railway-verify` no Cloudflare). Redirect
+>   canônico apex→www (301) via ruleset Cloudflare. SSL/TLS Full + Universal SSL.
+> - **Variáveis**: backend `CORS_ORIGIN` e `FRONTEND_URL` → domínio próprio;
+>   frontend `VITE_API_URL=https://api.validevento.com.br` (rebuild). Deploys OK.
+> - **Resend (P9 concluído)**: domínio `validevento.com.br` **verificado**
+>   (DKIM `resend._domainkey`, MX+SPF em `send`); `EMAIL_FROM`
+>   `Validevento <noreply@validevento.com.br>`. E-mail real de recuperação
+>   `delivered` (link → `https://www.validevento.com.br/recuperar-senha`).
+> - **Validações**: `/api/health` 200, frontend 200 (inclui rota SPA), apex 301,
+>   preflight CORS 204 com `Allow-Origin` correto.
 
 ---
 
@@ -29,8 +53,7 @@
 > - **P7 (IN PROGRESS)** — smoke test de UI no navegador pelo usuário
 >   (login `/master`, cliente+cotas, admin+e-mail, evento+importação CSV,
 >   `/terminal/:eventId` + PWA, dashboard/relatórios). Login por API já OK.
-> - **P9 (IN PROGRESS)** — configurar domínio de e-mail autorizado no Resend
->   (`EMAIL_FROM`) — o usuário vai definir depois.
+> - P9 agora DONE (domínio Resend verificado + `EMAIL_FROM` — ver seção 0b).
 
 ---
 
@@ -56,9 +79,11 @@
 - Projeto Railway: `validevento` (`6b703342-…`) · workspace `gabrielscm7's Projects`
 - Serviços: `backend` (`2df5e0ce-…`), `frontend` (`b67f3d4b-…`), `Postgres` (`30b5536d-…`)
 - Env de produção: `3bb73c6a-5754-443a-9155-6ec2a874b68f`
-- Domínio backend: `https://backend-production-9738e.up.railway.app`
-- Domínio frontend: `https://frontend-production-b15b.up.railway.app`
-- **Frontend real está no Railway** (não Vercel como o PRD previa).
+- **Domínio próprio (07/09):** DNS Cloudflare `validevento.com.br`
+  - Frontend canônico: `https://www.validevento.com.br` (apex `validevento.com.br` → 301 www)
+  - Backend/API: `https://api.validevento.com.br`
+  - Service domains Railway antigos (fallback): `backend-production-9738e.up.railway.app`,
+    `frontend-production-b15b.up.railway.app`
 
 ---
 
@@ -274,6 +299,6 @@ git push origin master
 | P6 | resend-verification | DONE | `POST /api/auth/resend-verification` (token 48h, resposta genérica); testes `T-email-3/4`; suíte 59/59 |
 | P7 | Smoke test prod | IN PROGRESS | Login do master OK via API; itens de UI/browser pendem do usuário (ver Checklist §6) |
 | P8 | Atualizar Agent.md | DONE | `Agent.md` reescrito (frontend v2, infra Railway 100%, migrações até 006, testes 59/59) |
-| P9 | Revisões opcionais | IN PROGRESS | DONE: seed removido do preDeploy (só `migrate`), `FRONTEND_URL` e `CORS_ORIGIN` (→ domínio do frontend) definidas. PENDENTE: confirmar remetente Resend (`EMAIL_FROM`/domínio) — usuário vai configurar domínio de e-mail depois |
+| P9 | Revisões opcionais | DONE (07/09) | Seed removido do preDeploy (só `migrate`); `FRONTEND_URL`/`CORS_ORIGIN` → domínio próprio (`https://www.validevento.com.br`); domínio `validevento.com.br` **verificado na Resend** + `EMAIL_FROM="Validevento <noreply@validevento.com.br>"`; e-mail de recuperação `delivered` |
 
 Status: TODO | IN PROGRESS | DONE | BLOCKED (razão em uma linha)

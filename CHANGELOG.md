@@ -1,5 +1,72 @@
 # Changelog — Validevento
 
+## v2.4.0 — Domínio próprio validevento.com.br + Resend configurado (2026-09-07)
+
+### Resumo
+
+Frontend e backend migrados dos domínios `*.up.railway.app` para o domínio
+próprio **`validevento.com.br`** (DNS via Cloudflare), com subdomínios
+**`www.`** (frontend canônico) e **`api.`** (backend). Domínio de envio
+**verificado na Resend** e e-mail transacional testado de ponta a ponta
+(`delivered`).
+
+### 🌐 Domínio e DNS (Cloudflare + Railway)
+
+- Zona `validevento.com.br` na Cloudflare (nameservers `emely`/`harlan`).
+- Custom domains na Railway (todos `verified`):
+  - **frontend**: `www.validevento.com.br` (canônico, redirect do apex) e
+    `validevento.com.br` (apex, usado só para o redirect 301).
+  - **backend**: `api.validevento.com.br`.
+- Registros DNS criados via API Cloudflare:
+  - `CNAME @ → owst7cqw.up.railway.app` (apex/frontend),
+    `CNAME www → cjpd1rkk.up.railway.app`, `CNAME api → n6bopggl.up.railway.app`
+    (proxied/orange cloud).
+  - `TXT _railway-verify.*` (3) — tokens de verificação emitidos pela Railway
+    (CNAME + TXT são exigidos; sem o TXT o domínio ficava em 404 fallback).
+- **Redirect canônico** no Cloudflare (ruleset `http_request_dynamic_redirect`):
+  `validevento.com.br → https://www.validevento.com.br` (301, preserva path/query).
+- SSL/TLS Cloudflare em **Full** e Universal SSL ativo (exigência do Railway com
+  proxy Cloudflare).
+
+### ⚙️ Variáveis de ambiente (Railway)
+
+- **backend**: `CORS_ORIGIN=https://www.validevento.com.br,https://validevento.com.br`
+  (antes: domínio `*.up.railway.app` — bloqueava chamadas a partir do domínio
+  próprio), `FRONTEND_URL=https://www.validevento.com.br`,
+  `EMAIL_FROM="Validevento <noreply@validevento.com.br>"`.
+- **backend (código)**: fallback do remetente em `utils/email.js` corrigido de
+  `noreply@validevento.com` (domínio inexistente) para
+  `noreply@validevento.com.br`. Suíte backend segue **59/59**.
+- **frontend**: `VITE_API_URL=https://api.validevento.com.br` (embutida no build;
+  exigiu rebuild do frontend).
+
+### ✉️ Resend (domínio de envio verificado)
+
+- Domínio `validevento.com.br` adicionado na Resend (`region us-east-1`) e
+  **`verified`** via API (id `fb1a48fe-d33d-4b62-9ec8-486c51e473b0`).
+- Registros DNS criados na Cloudflare:
+  - `TXT resend._domainkey` (DKIM),
+  - `MX send → feedback-smtp.us-east-1.amazonses.com` (prio 10),
+  - `TXT send → v=spf1 include:amazonses.com ~all`.
+- Teste real: `POST /api/auth/forgot-password` → e-mail
+  `Recuperação de senha — Validevento` de `noreply@validevento.com.br` entregue
+  (`last_event=delivered`) — link aponta para `https://www.validevento.com.br/recuperar-senha`.
+
+### ✅ Validações
+
+- `GET https://api.validevento.com.br/api/health` → 200 `database: connected`.
+- `GET https://www.validevento.com.br/` → 200; rota SPA (`/ativar`) → 200 HTML.
+- `https://validevento.com.br/` → **301** para `https://www.validevento.com.br/`.
+- Preflight CORS `Origin: https://www.validevento.com.br` → 204 com
+  `Access-Control-Allow-Origin` correto.
+
+### 📝 Docs
+
+- `Docs/HANDOFF-FASE4-PENDENCIAS.md`, `Docs/CHECKLIST-DEPLOY-v2.md` e
+  `Agent.md` atualizados com a infra de domínio/Resend.
+
+---
+
 ## v2.3.1 — Produção no ar · pendências P1–P9 pós-Fase 4 (2026-09-06)
 
 ### Resumo

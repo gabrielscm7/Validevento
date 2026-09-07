@@ -44,13 +44,15 @@ em dashboard em tempo real; Supervisor opera portões, relatórios e o evento.
 ### Infra (produção real)
 | Serviço | Função |
 |---|---|
-| Railway (backend) | API `https://backend-production-9738e.up.railway.app` |
-| Railway (frontend) | App `https://frontend-production-b15b.up.railway.app` |
+| Railway (backend) | API `https://api.validevento.com.br` (fallback `backend-production-9738e.up.railway.app`) |
+| Railway (frontend) | App `https://www.validevento.com.br` (canônico; apex `validevento.com.br` → 301 www) |
 | Railway (Postgres) | Banco de produção |
+| Cloudflare | DNS + proxy/CDN do domínio `validevento.com.br` (SSL Full + Universal SSL) |
+| Resend | E-mail transacional — domínio `validevento.com.br` verificado; `EMAIL_FROM="Validevento <noreply@validevento.com.br>"` |
 | Docker (PostgreSQL) | Banco local dev |
 
-> Nota: o PRD previa Vercel/Supabase, mas a infra real é **100% Railway**.
-> Não migrar sem pedido do usuário.
+> Nota: o PRD previa Vercel/Supabase, mas a infra real é **100% Railway** com
+> domínio próprio gerenciado pela Cloudflare. Não migrar sem pedido do usuário.
 
 ## 🔄 Modelo de identidade e validação (histórico + v2)
 
@@ -141,11 +143,18 @@ em dashboard em tempo real; Supervisor opera portões, relatórios e o evento.
 
 ## 🚀 Próximos passos / operação
 
-- **Produção no ar** (v2.3.0): backend e frontend em Railway (branch `master`),
-  preDeploy roda apenas `npm run migrate` (seed removido — criar usuários via SQL).
+- **Produção no ar** (v2.4.0): backend e frontend em Railway (branch `master`)
+  atrás do domínio próprio `validevento.com.br` (Cloudflare); preDeploy roda
+  apenas `npm run migrate` (seed removido — criar usuários via SQL).
+- **E-mail (Resend)**: domínio `validevento.com.br` verificado; envio testado
+  (`delivered`). `FRONTEND_URL`/`EMAIL_FROM`/`CORS_ORIGIN` apontam para o
+  domínio próprio.
 - **Pendências de produção** e status atual: ver
-  `Docs/HANDOFF-FASE4-PENDENCIAS.md` (tabela P1–P9) e
+  `Docs/HANDOFF-FASE4-PENDENCIAS.md` (P1–P9; resta P7 = smoke de UI manual) e
   `Docs/CHECKLIST-DEPLOY-v2.md`.
+- **Segredos**: nunca gravar tokens/API keys no repo público (o projeto é
+  público no GitHub). Chaves ficam fora do workspace em
+  `C:\Users\Mion\AppData\Local\Temp\opencode\*.txt`.
 - Ideias futuras (não iniciadas): upload real de banner/logo (hoje aceita URL),
   endpoint global de auditoria por cliente, métricas de velocidade por terminal
   no frontend, testes de carga no terminal.

@@ -5,7 +5,7 @@
  */
 
 function resendFrom() {
-  return process.env.EMAIL_FROM || 'Validevento <noreply@validevento.com>';
+  return process.env.EMAIL_FROM || 'Validevento <noreply@validevento.com.br>';
 }
 
 function frontendUrl() {
