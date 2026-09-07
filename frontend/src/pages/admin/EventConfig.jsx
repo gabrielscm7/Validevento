@@ -62,7 +62,12 @@ export default function EventConfig() {
     setSaving(true)
     setError('')
     try {
-      const updated = await updateConfig(id, config)
+      // Envia apenas os campos de configuração (ignora event_id/created_at/updated_at)
+      const editable = { ...(config || {}) }
+      delete editable.event_id
+      delete editable.created_at
+      delete editable.updated_at
+      const updated = await updateConfig(id, editable)
       setConfig(updated)
     } catch (e) {
       setError(e?.response?.data?.details || e?.response?.data?.error || 'Erro ao salvar.')

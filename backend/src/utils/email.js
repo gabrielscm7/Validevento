@@ -72,6 +72,39 @@ function resetHtml(name, link) {
   `;
 }
 
+function eventAccessHtml(name, eventName, eventDate, links) {
+  const items = (links || [])
+    .map(
+      (l) => `
+        <p style="margin:0 0 6px;">
+          <strong style="color:#1e293b;">${l.label}:</strong>
+          <a href="${l.url}" style="color:#2563eb;">${l.url}</a>
+        </p>`
+    )
+    .join('');
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto;">
+      <h2 style="color:#1e293b;">Acesso ao evento — Validevento</h2>
+      <p>Olá, <strong>${name}</strong>!</p>
+      <p>Você foi escalado(a) para a equipe do evento <strong>${eventName}</strong>${eventDate ? ` (${eventDate})` : ''}.</p>
+      <p>Use os links abaixo para abrir as páginas de acesso:</p>
+      <div style="background:#f1f5f9; border-radius:8px; padding:14px 16px; margin:12px 0;">
+        ${items}
+      </div>
+      <p style="color:#475569; font-size:13px;">O link de acesso exige login com seu CPF e senha já cadastrados. Se não reconhece este evento, ignore este e-mail.</p>
+    </div>
+  `;
+}
+
+// Convite de acesso a evento: envia os links (dashboard e/ou terminal) da equipe.
+async function sendEventAccessEmail(to, { name, eventName, eventDate, links }) {
+  return sendMail({
+    to,
+    subject: `Acesso ao evento — ${eventName}`,
+    html: eventAccessHtml(name, eventName, eventDate, links),
+  });
+}
+
 // Link de ativação: expira em 48h
 async function sendActivationEmail(to, name, token) {
   const link = `${frontendUrl()}/ativar?token=${token}`;
@@ -95,5 +128,6 @@ async function sendPasswordResetEmail(to, name, token) {
 module.exports = {
   sendActivationEmail,
   sendPasswordResetEmail,
+  sendEventAccessEmail,
   sendMail,
 };

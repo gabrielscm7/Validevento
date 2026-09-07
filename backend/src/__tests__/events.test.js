@@ -136,4 +136,62 @@ describe('Gestão de eventos (Fase 2)', () => {
     expect(res.body.banner_url).toBe('https://cdn.exemplo.com/festival/banner.jpg');
     expect(res.body.logo_url).toBe('https://cdn.exemplo.com/festival/logo.png');
   });
+
+  test('T-config-meta: PUT config tolera event_id/updated_at ecoados (não 400)', async () => {
+    const event = await createEventViaApi('Festival Config Meta');
+
+    // Clientes que ecoam o objeto do GET (com event_id/created_at/updated_at) não devem quebrar.
+    const res = await api()
+      .put(`/api/events/${event.id}/config`)
+      .set(auth(adminToken))
+      .send({
+        event_id: event.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        qrcode_field: 'ticket_code',
+        manual_fields: ['display_name', 'cpf'],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.qrcode_field).toBe('ticket_code');
+  });
+
+  test('T-events-share-1: share sem equipe retorna 422 empty_team', async () => {
+    const event = await createEventViaApi('Festival Share Vazio');
+
+    const res = await api()
+      .post(`/api/events/${event.id}/share`)
+      .set(auth(adminToken));
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe('empty_team');
+  });
+
+  test('T-events-share-2: share com equipe envia e-mail e responde sent[] (RESEND ausente → suppressed, sem erro)', async () => {
+    const event = await createEventViaApi('Festival Share Equipe');
+
+    const member = await createUser({
+      tenant_id: client.id,
+      role: 'validator',
+      name: 'Validador Time',
+      cpf: '90909090909',
+      password: 'time123',
+      email_verified: true,
+    });
+
+    const add = await api()
+      .post(`/api/events/${event.id}/team`)
+      .set(auth(adminToken))
+      .send({ user_id: member.id, role_override: 'validator' });
+    expect(add.status).toBe(201);
+
+    const res = await api()
+      .post(`/api/events/${event.id}/share`)
+      .set(auth(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.sent.length).toBe(1);
+    expect(res.body.sent[0]).toBe(member.email);
+    expect(res.body.total).toBe(1);
+  });
 });

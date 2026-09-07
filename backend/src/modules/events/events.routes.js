@@ -27,4 +27,7 @@ router.put('/:eventId', requireRole('admin', 'master'), eventAccess, eventsContr
 // PATCH /api/events/:eventId/status — transição de status (admin/master)
 router.patch('/:eventId/status', requireRole('admin', 'master'), eventAccess, eventsController.changeStatus);
 
+// POST /api/events/:eventId/share — envia link do evento por e-mail à equipe (admin/master)
+router.post('/:eventId/share', requireRole('admin', 'master'), eventAccess, eventsController.share);
+
 module.exports = router;

@@ -13,6 +13,25 @@
 
 ---
 
+## 0c. Resultado da sessão de 07/09/2026 (tarde) — Correções do smoke test (v2.4.1)
+
+> Smoke test manual revelou bugs de edição/config, acesso do validador e do
+> dashboard. Corrigidos (ver `CHANGELOG.md` v2.4.1):
+>
+> - **BUG-03** — salvar config (EventConfig) reenviava `event_id`/`updated_at` →
+>   frontend envia só campos editáveis + backend ignora colunas ecoadas.
+> - **BUG-05** — `/api/validation/*` validam UUID (`400 invalid_event_id` em vez
+>   de 500 `invalid input syntax for type uuid`); `Terminal` mostra "Link
+>   inválido" e `NoEvent` permite colar o link do evento.
+> - **BUG-06/loading** — `EventDashboard` não fica mais em loader eterno com
+>   403/erro; botão "Ativar evento" (admin) no dashboard libera validações.
+> - **Link da equipe** — card "Acesso da equipe" (copiar links) + endpoint
+>   `POST /api/events/:eventId/share` que envia link por e-mail à equipe.
+>
+> Testes: backend 64/64, frontend 16/16, lint 0, build OK.
+
+---
+
 ## 0b. Resultado da sessão de 07/09/2026 — Domínio próprio + Resend (v2.4.0)
 
 > **Domínio `validevento.com.br` no ar** (Cloudflare → Railway). Frontend
@@ -297,7 +316,7 @@ git push origin master
 | P4 | Migrations + master | DONE | Migrations 01→006 aplicadas (audit DELETE=false; `banner_url`/`logo_url` OK); master `gabrielscm@gmail.com` CPF `998.834.062-15` criado via SQL com o salt definitivo; login validado |
 | P5 | banner/logo no backend | DONE | Migration `006_event_branding.sql` + liberado em create/update (`events.service`/`events.controller`); teste `T-events-5`; suíte 59/59 |
 | P6 | resend-verification | DONE | `POST /api/auth/resend-verification` (token 48h, resposta genérica); testes `T-email-3/4`; suíte 59/59 |
-| P7 | Smoke test prod | IN PROGRESS | Login do master OK via API; itens de UI/browser pendem do usuário (ver Checklist §6) |
+| P7 | Smoke test prod | IN PROGRESS | Login do master OK via API; Fase 1–4 testadas no navegador em 07/09; bugs encontrados corrigidos na v2.4.1 (config/edição, UUID no terminal, dashboard 403/loading, ativar no dashboard, link por e-mail). Pendente re-testar a Fase 4 (config salvar, importar, terminal com link, ativar) pós-deploy |
 | P8 | Atualizar Agent.md | DONE | `Agent.md` reescrito (frontend v2, infra Railway 100%, migrações até 006, testes 59/59) |
 | P9 | Revisões opcionais | DONE (07/09) | Seed removido do preDeploy (só `migrate`); `FRONTEND_URL`/`CORS_ORIGIN` → domínio próprio (`https://www.validevento.com.br`); domínio `validevento.com.br` **verificado na Resend** + `EMAIL_FROM="Validevento <noreply@validevento.com.br>"`; e-mail de recuperação `delivered` |
 

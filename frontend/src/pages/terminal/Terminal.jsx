@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { useTerminalStore } from '../../store/terminalStore'
 import { useValidation } from '../../hooks/useValidation'
@@ -15,6 +15,7 @@ import { MasterTicketButton } from '../../components/MasterTicketButton'
 import Logo from '../../components/Logo'
 import { initials } from '../../lib/format'
 import { setLastEventId } from '../../lib/lastEvent'
+import { isValidUUIDv4 } from '../../lib/uuid'
 
 const DEFAULT_CONFIG = {
   checkout_enabled: false,
@@ -57,6 +58,10 @@ export default function Terminal() {
 
   useEffect(() => {
     if (!eventId) return
+    if (!isValidUUIDv4(eventId)) {
+      setEventName('Link inválido')
+      return
+    }
     let mounted = true
     setLastEventId(eventId)
     initTerminal(eventId)
@@ -113,6 +118,30 @@ export default function Terminal() {
   const modeLabel = config.checkout_enabled
     ? mode === 'checkout' ? 'SAÍDA' : 'ENTRADA'
     : null
+
+  if (!isValidUUIDv4(eventId)) {
+    return (
+      <div className="terminal-root">
+        <header className="terminal-topbar">
+          <Logo size={26} light />
+          <span className="avatar" title={user?.name}>{initials(user?.name)}</span>
+        </header>
+        <div className="terminal-context">Link inválido · Terminal de Portaria</div>
+        <main className="terminal-main" style={{ alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ textAlign: 'center', color: '#fff', maxWidth: 360 }}>
+            <p style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>Link do evento inválido</p>
+            <p style={{ color: 'rgba(255,255,255,.65)', fontSize: 14, lineHeight: 1.5 }}>
+              Esse endereço não corresponde a um evento válido. Use o link enviado pela equipe
+              (ex.: <span className="mono" style={{ wordBreak: 'break-all' }}>https://www.validevento.com.br/terminal/&lt;código-do-evento&gt;</span>).
+            </p>
+            <Link to="/sem-evento" className="btn btn-primary" style={{ marginTop: 20, display: 'inline-block' }}>
+              Informar outro link
+            </Link>
+          </div>
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="terminal-root">

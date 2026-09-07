@@ -2,12 +2,25 @@
  * Controller de validação (Fase 2).
  */
 const validationService = require('./validation.service');
+const { isValidUUIDv4 } = require('../../utils/validation');
 
 function sendError(res, error) {
   return res.status(error.status || 500).json({
     error: error.code || error.message,
     details: error.code ? error.message : undefined,
   });
+}
+
+/** Valida se o parâmetro event_id é um UUID v4 antes de ir ao banco. */
+function requireValidEventId(eventId, res) {
+  if (!eventId || !isValidUUIDv4(eventId)) {
+    res.status(400).json({
+      error: 'invalid_event_id',
+      details: 'Identificador do evento inválido. Verifique o link do evento enviado pela equipe.',
+    });
+    return false;
+  }
+  return true;
 }
 
 async function lookup(req, res) {
@@ -17,6 +30,7 @@ async function lookup(req, res) {
     if (!code || !event_id) {
       return res.status(400).json({ error: 'Parâmetros code e event_id são obrigatórios.' });
     }
+    if (!requireValidEventId(event_id, res)) return;
 
     const result = await validationService.lookupTicket(event_id, code, req.tenantId);
     return res.status(200).json(result);
@@ -34,6 +48,7 @@ async function validateQRCode(req, res) {
     if (!ticket_code || !event_id) {
       return res.status(400).json({ error: 'Parâmetros ticket_code e event_id são obrigatórios.' });
     }
+    if (!requireValidEventId(event_id, res)) return;
 
     const result = await validationService.validateQRCode(event_id, terminal_id, validatorId, ticket_code, req.tenantId);
     return res.status(200).json(result);
@@ -51,6 +66,7 @@ async function validateManual(req, res) {
     if (!ticket_id || !event_id) {
       return res.status(400).json({ error: 'Parâmetros ticket_id e event_id são obrigatórios.' });
     }
+    if (!requireValidEventId(event_id, res)) return;
 
     const result = await validationService.validateManual(event_id, terminal_id, validatorId, ticket_id, req.tenantId);
 
@@ -73,6 +89,7 @@ async function checkout(req, res) {
     if (!ticket_code || !event_id) {
       return res.status(400).json({ error: 'Parâmetros ticket_code e event_id são obrigatórios.' });
     }
+    if (!requireValidEventId(event_id, res)) return;
 
     const result = await validationService.checkout({
       eventId: event_id,
@@ -101,6 +118,7 @@ async function useMaster(req, res) {
     if (!event_id || !beneficiary_name) {
       return res.status(400).json({ error: 'Parâmetros event_id e beneficiary_name são obrigatórios.' });
     }
+    if (!requireValidEventId(event_id, res)) return;
 
     const result = await validationService.useMaster({
       eventId: event_id,
@@ -124,6 +142,7 @@ async function search(req, res) {
     if (!event_id) {
       return res.status(400).json({ error: 'event_id é obrigatório para realizar buscas.' });
     }
+    if (!requireValidEventId(event_id, res)) return;
 
     if (!q) {
       return res.status(400).json({ error: 'Forneça o parâmetro q (busca por nome).' });

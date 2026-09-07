@@ -94,6 +94,12 @@ export async function createInvitation(eventId, payload) {
   return data
 }
 
+// ── Compartilhar link do evento com a equipe ──
+export async function shareEventWithTeam(eventId) {
+  const { data } = await api.post(`/api/events/${eventId}/share`)
+  return data
+}
+
 // ── Portões ──
 export async function listGates(eventId) {
   const { data } = await api.get(`/api/events/${eventId}/gates`)

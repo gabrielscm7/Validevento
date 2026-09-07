@@ -3,7 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import TopBar from '../../components/TopBar'
 import { PageLoader, ErrorNotice } from '../../components/feedback'
 import { Modal, Btn } from '../../components/ui'
-import { getEvent } from '../../services/eventsService'
+import { useAuthStore } from '../../store/authStore'
+import { getEvent, changeEventStatus as changeEventStatusApi } from '../../services/eventsService'
 import { getConfig, toggleCheckoutApi } from '../../services/eventsActionsService'
 import { useDashboardData } from '../../hooks/useDashboardData'
 import { SummaryCards } from '../../components/dashboard/SummaryCards'
@@ -14,8 +15,9 @@ import { LiveFeed } from '../../components/dashboard/LiveFeed'
 import { AlertsFeed } from '../../components/dashboard/AlertsFeed'
 import { formatDateTime } from '../../lib/format'
 import { setLastEventId } from '../../lib/lastEvent'
+import EventShareCard from '../../components/EventShareCard'
 
-function EventHeader({ event, config, onToggleCheckout }) {
+function EventHeader({ event, config, onToggleCheckout, onActivate, canActivate, statusBusy }) {
   const gateStatus = event?.gate_status
   return (
     <div className="card card-pad mb-4">
@@ -37,10 +39,25 @@ function EventHeader({ event, config, onToggleCheckout }) {
               {formatDateTime(event?.date)}
               {event?.location ? ` · ${event.location}` : ''}
             </p>
+            {event?.status === 'draft' && <span className="badge badge-gray mt-1">Rascunho — ainda não liberado</span>}
           </div>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
+          {canActivate && (
+            <Btn variant="success" className="btn-lg" loading={statusBusy} onClick={onActivate}>
+              ▶ Ativar evento (liberar validações)
+            </Btn>
+          )}
+          {event?.status === 'active' && (
+            <div className="flex items-center gap-2">
+              <span className="dot dot-green pulse" />
+              <p className="text-sm font-medium" style={{ color: 'var(--text-strong)' }}>Operação aberta</p>
+            </div>
+          )}
+          {event?.status === 'active' && (
+            <Link to={`/terminal/${event.id}`} className="btn-primary btn-sm btn">Abrir terminal →</Link>
+          )}
           <div className="flex items-center gap-2">
             <span className={`dot ${gateStatus?.status === 'open' ? 'dot-green pulse' : 'dot-gray'}`} />
             <div>
@@ -54,9 +71,11 @@ function EventHeader({ event, config, onToggleCheckout }) {
           </div>
           <Link to="portoes" className="btn-outline btn-sm btn">Portões</Link>
           <Link to="relatorio" className="btn-outline btn-sm btn">Relatório</Link>
-          <Btn variant="outline" className="btn-sm" onClick={onToggleCheckout}>
-            Checkout: {config?.checkout_enabled ? 'ATIVO' : 'inativo'}
-          </Btn>
+          {event?.status === 'active' && (
+            <Btn variant="outline" className="btn-sm" onClick={onToggleCheckout}>
+              Checkout: {config?.checkout_enabled ? 'ATIVO' : 'inativo'}
+            </Btn>
+          )}
         </div>
       </div>
     </div>
@@ -66,29 +85,50 @@ function EventHeader({ event, config, onToggleCheckout }) {
 export default function EventDashboard() {
   const { eventId } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuthStore()
   const [event, setEvent] = useState(null)
   const [config, setConfig] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [statusBusy, setStatusBusy] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  const dash = useDashboardData(eventId)
+  const dash = useDashboardData(event && event.status === 'active' ? eventId : null)
 
   const loadEvent = useCallback(async () => {
+    setLoading(true)
+    setError('')
     try {
       const [ev, cfg] = await Promise.all([getEvent(eventId), getConfig(eventId)])
       setEvent(ev)
       setConfig(cfg)
       setLastEventId(ev.id)
     } catch (e) {
-      setError(e?.response?.data?.error || 'Erro ao carregar evento.')
+      setError(e?.response?.data?.details || e?.response?.data?.message || e?.response?.data?.error || 'Erro ao carregar evento.')
     } finally {
       setLoading(false)
     }
   }, [eventId])
 
   useEffect(() => { loadEvent() }, [loadEvent])
+
+  const canActivate = user?.role === 'admin' && event?.status === 'draft'
+
+  async function handleActivate() {
+    if (!event) return
+    if (!window.confirm(`Ativar o evento "${event.name}"? A operação será aberta e os validadores poderão liberar entradas.`)) return
+    setStatusBusy(true)
+    setError('')
+    try {
+      await changeEventStatusApi(eventId, 'active')
+      await loadEvent()
+    } catch (e) {
+      setError(e?.response?.data?.details || e?.response?.data?.error || 'Falha ao ativar o evento.')
+    } finally {
+      setStatusBusy(false)
+    }
+  }
 
   async function handleToggleCheckout(confirmed) {
     if (!confirmed) { setConfirmOpen(true); return }
@@ -118,9 +158,28 @@ export default function EventDashboard() {
     }
   }
 
-  if (loading || !event) return (<div className="page"><TopBar crumb="Dashboard" /><PageLoader /></div>)
+  if (loading) return (<div className="page"><TopBar crumb="Dashboard" /><PageLoader /></div>)
+
+  if (!event && error) {
+    return (
+      <div className="page">
+        <TopBar crumb="Dashboard" onBack={() => navigate('/admin')} />
+        <div className="page-body narrow" style={{ paddingTop: 40 }}>
+          <ErrorNotice>
+            {error === 'not_in_event_team'
+              ? 'Acesso negado: você não faz parte da equipe deste evento. Peça ao administrador para liberar seu acesso na tela Equipe.'
+              : error}
+          </ErrorNotice>
+          <div className="mt-4">
+            <Btn variant="primary" onClick={() => navigate('/admin')}>← Voltar aos eventos</Btn>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const speed = dash.data?.speed
+  const isActive = event?.status === 'active'
 
   return (
     <div className="page">
@@ -130,57 +189,78 @@ export default function EventDashboard() {
         {error && <ErrorNotice>{error}</ErrorNotice>}
         {dash.error && <ErrorNotice>{dash.error}</ErrorNotice>}
 
-        <EventHeader event={event} config={config} onToggleCheckout={handleToggleCheckout} />
+        <EventHeader event={event} config={config}
+          onToggleCheckout={handleToggleCheckout}
+          onActivate={handleActivate}
+          canActivate={canActivate}
+          statusBusy={statusBusy} />
 
-        <SummaryCards data={dash.data?.summary} loading={dash.loading} />
-
-        {speed && (
-          <div className="grid grid-cols-4 gap-sm mt-4">
-            <div className="card metric-card">
-              <p className="metric-label">Velocidade média</p>
-              <p className="metric-value">{speed.avg_gap_seconds ?? '—'}s</p>
-            </div>
-            <div className="card metric-card">
-              <p className="metric-label">Pico de fluxo</p>
-              <p className="metric-value">{speed.peak_hour || '—'}</p>
-              <p className="metric-sub">{speed.peak_count ?? 0} entradas</p>
-            </div>
-            <div className="card metric-card">
-              <p className="metric-label">Meta</p>
-              <p className="metric-value">{speed.target_seconds ?? '—'}s</p>
-            </div>
-            <div className="card metric-card">
-              <p className="metric-label">Dentro da meta</p>
-              <p className="metric-value">{speed.within_target_pct != null ? `${speed.within_target_pct}%` : '—'}</p>
-            </div>
+        {!isActive ? (
+          <div className="card card-pad">
+            <p className="card-title">Evento ainda não liberado</p>
+            <p className="card-sub">
+              {canActivate
+                ? 'Clique em "Ativar evento" acima para liberar as validações nos terminais.'
+                : 'Aguarde o administrador ativar o evento para liberar as validações.'}
+            </p>
           </div>
+        ) : (
+          <>
+            <SummaryCards data={dash.data?.summary} loading={dash.loading} />
+
+            {speed && (
+              <div className="grid grid-cols-4 gap-sm mt-4">
+                <div className="card metric-card">
+                  <p className="metric-label">Velocidade média</p>
+                  <p className="metric-value">{speed.avg_gap_seconds ?? '—'}s</p>
+                </div>
+                <div className="card metric-card">
+                  <p className="metric-label">Pico de fluxo</p>
+                  <p className="metric-value">{speed.peak_hour || '—'}</p>
+                  <p className="metric-sub">{speed.peak_count ?? 0} entradas</p>
+                </div>
+                <div className="card metric-card">
+                  <p className="metric-label">Meta</p>
+                  <p className="metric-value">{speed.target_seconds ?? '—'}s</p>
+                </div>
+                <div className="card metric-card">
+                  <p className="metric-label">Dentro da meta</p>
+                  <p className="metric-value">{speed.within_target_pct != null ? `${speed.within_target_pct}%` : '—'}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 mt-4">
+              <EntryChart data={dash.data?.flow} loading={dash.loading} />
+              <BatchTable data={dash.data?.batches} loading={dash.loading} />
+            </div>
+
+            <div className="grid grid-cols-2 mt-4">
+              <AlertsFeed data={dash.data?.alerts} loading={dash.loading} />
+              <LiveFeed data={dash.data?.liveFeed} loading={dash.loading} />
+            </div>
+
+            <div className="mt-4">
+              <TerminalsStatus data={dash.data?.terminals} loading={dash.loading} />
+            </div>
+
+            <div className="mt-4">
+              <EventShareCard event={event} canShare={user?.role === 'admin' || user?.role === 'master'} />
+            </div>
+
+            <div className="action-bar">
+              <div className="flex items-center justify-between flex-wrap gap-2" style={{ padding: '0 2px' }}>
+                <div className="flex gap-2 flex-wrap">
+                  <Btn variant="outline" className="btn-sm" loading={busy} onClick={handleForceSync}>
+                    ↻ Sincronizar terminais
+                  </Btn>
+                  <Link to="relatorio" className="btn-primary btn-sm btn">Exportar relatório</Link>
+                </div>
+                <span className="text-xs text-muted">Atualização automática a cada 30s</span>
+              </div>
+            </div>
+          </>
         )}
-
-        <div className="grid grid-cols-2 mt-4">
-          <EntryChart data={dash.data?.flow} loading={dash.loading} />
-          <BatchTable data={dash.data?.batches} loading={dash.loading} />
-        </div>
-
-        <div className="grid grid-cols-2 mt-4">
-          <AlertsFeed data={dash.data?.alerts} loading={dash.loading} />
-          <LiveFeed data={dash.data?.liveFeed} loading={dash.loading} />
-        </div>
-
-        <div className="mt-4">
-          <TerminalsStatus data={dash.data?.terminals} loading={dash.loading} />
-        </div>
-
-        <div className="action-bar">
-          <div className="flex items-center justify-between flex-wrap gap-2" style={{ padding: '0 2px' }}>
-            <div className="flex gap-2 flex-wrap">
-              <Btn variant="outline" className="btn-sm" loading={busy} onClick={handleForceSync}>
-                ↻ Sincronizar terminais
-              </Btn>
-              <Link to="relatorio" className="btn-primary btn-sm btn">Exportar relatório</Link>
-            </div>
-            <span className="text-xs text-muted">Atualização automática a cada 30s</span>
-          </div>
-        </div>
       </div>
 
       <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)}

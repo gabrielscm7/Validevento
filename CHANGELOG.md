@@ -1,5 +1,47 @@
 # Changelog — Validevento
 
+## v2.4.1 — Correções do smoke test em produção (2026-09-07)
+
+### Resumo
+
+Correções identificadas no smoke test manual da Fase 4 (BUG-03/05/06 + melhorias
+de acesso da equipe). Backend **64/64** testes; frontend **16/16**, lint 0, build OK.
+
+### 🐞 Correções
+
+- **BUG-03 — "Campos inválidos: event_id, updated_at" ao salvar a tela
+  Configurar evento**: `EventConfig` reenviava o objeto `config` inteiro
+  (incluindo colunas internas do GET). Agora envia apenas os campos de
+  configuração; backend (`event-config.service`) passa a **ignorar** os campos
+  ecoados `event_id`/`id`/`created_at`/`updated_at` (defesa extra p/ clientes).
+- **BUG-05 — validador com link errado gerava `invalid syntax for type uuid`**:
+  rotas `/api/validation/*` agora validam `event_id` como UUID e retornam
+  `400 invalid_event_id` (não mais 500). Frontend valida UUID no `Terminal`
+  (tela de "Link inválido") e a tela `NoEvent` (validador) ganhou campo para
+  colar o link do evento.
+- **BUG-06 + loading infinito**: `EventDashboard` parava em `PageLoader` eterno
+  quando `GET /api/events/:id` falhava (ex.: 403 `not_in_event_team`). Agora
+  mostra `ErrorNotice` com botão voltar; o polling só inicia com evento ativo.
+- **Botão "Iniciar/Ativar evento" no dashboard**: admin vê botão verde
+  "Ativar evento (liberar validações)" no `EventDashboard`; supervisor vê aviso
+  "evento ainda não liberado" até o admin ativar. Feedback de sucesso/erro.
+
+### 🔗 Acesso da equipe (link + e-mail)
+
+- Card **"Acesso da equipe"** (`EventShareCard`) em `EventDetail` e
+  `EventDashboard`: mostra links de terminal/dashboard/admin com **copiar**.
+- Novo endpoint **`POST /api/events/:eventId/share`** (admin/master): envia por
+  e-mail o link do evento a cada membro da equipe (`event_team`), com link por
+  perfil (terminal p/ validador, dashboard/admin p/ gestão). Template
+  `eventAccessHtml`/`sendEventAccessEmail` em `utils/email.js`.
+
+### 📝 Docs
+
+- `Docs/HANDOFF-FASE4-PENDENCIAS.md` e `Docs/CHECKLIST-DEPLOY-v2.md` atualizados
+  (bug do EventDashboard registrado como resolvido na v2.4.1).
+
+---
+
 ## v2.4.0 — Domínio próprio validevento.com.br + Resend configurado (2026-09-07)
 
 ### Resumo

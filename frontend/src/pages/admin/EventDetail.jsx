@@ -4,6 +4,7 @@ import TopBar from '../../components/TopBar'
 import { PageLoader, ErrorNotice } from '../../components/feedback'
 import { Modal, Btn } from '../../components/ui'
 import ImportTicketsModal from '../../components/admin/ImportTicketsModal'
+import EventShareCard from '../../components/EventShareCard'
 import { getEvent, changeEventStatus } from '../../services/eventsService'
 import { createInvitation } from '../../services/eventsActionsService'
 import { formatDateTime, formatCPF } from '../../lib/format'
@@ -131,22 +132,25 @@ export default function EventDetail() {
           </div>
         </div>
 
-        <div className="card card-pad mb-4">
-          <div className="card-head">
-            <h2 className="card-title">Gerência do evento</h2>
-          </div>
-          <div className="grid grid-cols-2" style={{ gap: 12 }}>
-            {[
-              ['Configurações de validação/check-in', `/admin/eventos/${id}/config`],
-              ['Equipe designada', `/admin/eventos/${id}/equipe`],
-              ['Lotes', `/admin/eventos/${id}/lotes`],
-              ['Ingressos', `/admin/eventos/${id}/ingressos`],
-            ].map(([label, to]) => (
-              <Link key={to} to={to} className="entity-row">
-                <span className="entity-avatar blue" style={{ width: 34, height: 34, fontSize: 15 }}>→</span>
-                <span className="font-medium" style={{ color: 'var(--text-strong)' }}>{label}</span>
-              </Link>
-            ))}
+        <div className="grid grid-cols-2" style={{ gap: 12 }}>
+          <EventShareCard event={event} />
+          <div className="card card-pad">
+            <div className="card-head">
+              <h2 className="card-title">Gerência do evento</h2>
+            </div>
+            <div className="grid grid-cols-2" style={{ gap: 12 }}>
+              {[
+                ['Configurações de validação/check-in', `/admin/eventos/${id}/config`],
+                ['Equipe designada', `/admin/eventos/${id}/equipe`],
+                ['Lotes', `/admin/eventos/${id}/lotes`],
+                ['Ingressos', `/admin/eventos/${id}/ingressos`],
+              ].map(([label, to]) => (
+                <Link key={to} to={to} className="entity-row">
+                  <span className="entity-avatar blue" style={{ width: 34, height: 34, fontSize: 15 }}>→</span>
+                  <span className="font-medium" style={{ color: 'var(--text-strong)' }}>{label}</span>
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
 

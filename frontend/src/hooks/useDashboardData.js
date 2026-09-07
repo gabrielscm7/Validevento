@@ -39,6 +39,11 @@ export function useDashboardData(eventId) {
 
   useEffect(() => {
     mounted.current = true
+    if (!eventId) {
+      setLoading(false)
+      setData(null)
+      return () => { mounted.current = false }
+    }
     setLoading(true)
     reload()
     const interval = setInterval(reload, 30000)
@@ -46,7 +51,7 @@ export function useDashboardData(eventId) {
       mounted.current = false
       clearInterval(interval)
     }
-  }, [reload])
+  }, [reload, eventId])
 
   return { data, loading, error, reload }
 }

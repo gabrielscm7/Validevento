@@ -22,6 +22,10 @@ const ALLOWED_FIELDS = [
   'export_formats',
 ];
 
+// Colunas/atributos internos que o GET devolve e que alguns clientes ecoam
+// de volta no PUT — não são configurações editáveis e são ignorados.
+const IGNORED_FIELDS = ['event_id', 'id', 'created_at', 'updated_at'];
+
 const VALID_QRCODE_FIELDS = ['ticket_code', 'cpf', 'custom_hash'];
 const VALID_REENTRY = ['none', 'free', 'conditioned'];
 const VALID_DUPLICATE = ['warn', 'block'];
@@ -62,6 +66,11 @@ function normalizeArrays(payload) {
  */
 async function updateConfig(eventId, payload) {
   const clean = normalizeArrays(payload);
+
+  // Descarta campos internos ecoados pelo GET (event_id/created_at/updated_at).
+  for (const key of Object.keys(clean)) {
+    if (IGNORED_FIELDS.includes(key)) delete clean[key];
+  }
 
   const invalidFields = Object.keys(clean).filter((k) => !ALLOWED_FIELDS.includes(k));
   if (invalidFields.length) {

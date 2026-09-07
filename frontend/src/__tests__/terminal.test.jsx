@@ -18,7 +18,9 @@ vi.mock('../services/api', () => ({
   default: { get: mocks.get, post: mocks.post },
 }))
 
-function renderTerminal(eventId = 'evt-1') {
+const VALID_EVENT_ID = '1e3f7a2b-9c4d-4e5f-8a6b-0c1d2e3f4a5b'
+
+function renderTerminal(eventId = VALID_EVENT_ID) {
   return render(
     <MemoryRouter initialEntries={[`/terminal/${eventId}`]}>
       <Routes>
@@ -37,7 +39,7 @@ describe('Terminal', () => {
       isAuthenticated: true,
     })
     mocks.syncWithServer.mockResolvedValue({ tickets_updated: 0, logs_sent: 0 })
-    mocks.get.mockResolvedValue({ data: { id: 'evt-1', name: 'Festa do Cliente' } })
+    mocks.get.mockResolvedValue({ data: { id: VALID_EVENT_ID, name: 'Festa do Cliente' } })
   })
 
   it('T-terminal-1: inicia sync ao montar', async () => {

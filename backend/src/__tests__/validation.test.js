@@ -88,4 +88,24 @@ describe('Validação de QRCode (Parte F / BUG-01)', () => {
     expect(res.body.status).toBe('blocked');
     expect(res.body.ticket_code).toBe(ticket.ticket_code);
   });
+
+  test('T-uuid-inv-1: search com event_id não-UUID retorna 400 (não 500)', async () => {
+    const res = await api()
+      .get('/api/validation/search')
+      .set(auth(validatorToken))
+      .query({ event_id: 'Evento_Teste', q: 'Ana' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_event_id');
+  });
+
+  test('T-uuid-inv-2: qrcode com event_id não-UUID retorna 400 (não 500)', async () => {
+    const res = await api()
+      .post('/api/validation/qrcode')
+      .set(auth(validatorToken))
+      .send({ ticket_code: crypto.randomUUID(), event_id: 'Evento_Teste' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_event_id');
+  });
 });

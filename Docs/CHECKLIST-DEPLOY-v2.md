@@ -2,7 +2,7 @@
 
 **Data de execução:** 06/09/2026
 **Fase:** 4 de 4 (frontend completo) — concluída.
-**Status:** ✅ Frontend pronto (16 testes, build e lint OK) · ✅ **Produção no ar** (backend e frontend deployados em `29c1222`; `/health` 200) · ✅ **Domínio próprio + Resend (07/09, v2.4.0)** · 🟡 Smoke test de UI pendente (passos manuais §6).
+**Status:** ✅ Frontend pronto (16 testes, build e lint OK) · ✅ **Produção no ar** (backend e frontend deployados em `29c1222`; `/health` 200) · ✅ **Domínio próprio + Resend (07/09, v2.4.0)** · ✅ **Correções do smoke test (07/09, v2.4.1)** · 🟡 Re-testar a Fase 4 pós-correções (passos §6).
 
 ---
 
@@ -107,7 +107,7 @@
 2. **Resend de ativação** — ✅ **implementado** (06/09): `POST /api/auth/resend-verification` (token novo 48h, resposta genérica). A tela `ActivateAccount` já consome o endpoint.
 3. **Dashboard do Master** usa dados reais dos endpoints existentes (`/api/clients`, `/api/clients/:id/usage`, `/api/events`, `/api/users`). Sem endpoint de auditoria global por cliente, a aba "Auditoria" do `ClientDetail` agrega `reports/audit` dos eventos do tenant.
 4. **Link de recuperação** — ✅ corrigido (06/09): e-mail aponta para `/recuperar-senha` (rota real do frontend), não mais `/recuperar`.
-5. **BUG UX (registrado, sem correção por ora): `EventDashboard` (Supervisor) fica em loading infinito + polling a cada 30s quando o usuário não pertence à equipe do evento.** Todos os endpoints de `/api/events/:id/*` retornam `403 not_in_event_team` (por design), mas a página trata como erro genérico de fetch: `event` fica `null` → `if (loading || !event) return <PageLoader/>` nunca sai; e `useDashboardData` continua o polling mesmo sem o evento. **Correção sugerida:** renderizar `ErrorNotice` com o `403` + botão voltar quando o `getEvent` falhar, e não iniciar o polling enquanto não houver evento. Acesso real é liberado adicionando o usuário à equipe (tela Equipe do admin) — sem isso o acesso é negado por design (RF acesso por equipe).
+5. **BUG UX `EventDashboard` loading infinito com 403 — ✅ corrigido (07/09, v2.4.1).** A página mostrava `PageLoader` eterno + polling a cada 30s quando o usuário não pertence à equipe do evento (403 `not_in_event_team`). Agora renderiza `ErrorNotice` com botão voltar e o polling só inicia com evento ativo. Também: botão **"Ativar evento"** (admin) no dashboard para liberar validações; validação de UUID nas rotas `/api/validation/*` (400 em vez de 500) e tela "Link inválido" no terminal; card "Acesso da equipe" (copiar link) + `POST /api/events/:id/share` envia link por e-mail à equipe.
 6. **Domínio próprio + Resend (07/09, v2.4.0)** — ✅ resolvido. Frontend canônico `https://www.validevento.com.br` (apex 301 → www); backend `https://api.validevento.com.br`. Cloudflare (DNS + proxy, SSL Full). Domínio `validevento.com.br` verificado na Resend; `EMAIL_FROM="Validevento <noreply@validevento.com.br>"`; envio de recuperação testado (`delivered`). Ver §0.
 
 ---

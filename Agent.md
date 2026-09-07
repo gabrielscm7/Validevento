@@ -106,7 +106,7 @@ em dashboard em tempo real; Supervisor opera portões, relatórios e o evento.
   dashboard v2 por evento, relatórios MD/CSV/audit, monitor de terminais offline.
 - Log de auditoria imutável (`audit_logs`), isolamento por tenant.
 - `GET /health` e `GET /api/health` (keep-alive Railway).
-- Testes **Jest + Supertest**: 59 testes / 13 suítes.
+- Testes **Jest + Supertest**: 64 testes / 13 suítes.
 
 **Frontend — v2 completo (Fase 4):**
 - Identidade "VALIDE/VENTO" (paleta `#4A2368`/`#2E516B`, Montserrat + Inter),
@@ -143,15 +143,15 @@ em dashboard em tempo real; Supervisor opera portões, relatórios e o evento.
 
 ## 🚀 Próximos passos / operação
 
-- **Produção no ar** (v2.4.0): backend e frontend em Railway (branch `master`)
+- **Produção no ar** (v2.4.1): backend e frontend em Railway (branch `master`)
   atrás do domínio próprio `validevento.com.br` (Cloudflare); preDeploy roda
   apenas `npm run migrate` (seed removido — criar usuários via SQL).
 - **E-mail (Resend)**: domínio `validevento.com.br` verificado; envio testado
   (`delivered`). `FRONTEND_URL`/`EMAIL_FROM`/`CORS_ORIGIN` apontam para o
-  domínio próprio.
+  domínio próprio. Envio do link do evento à equipe: `POST /api/events/:id/share`.
 - **Pendências de produção** e status atual: ver
-  `Docs/HANDOFF-FASE4-PENDENCIAS.md` (P1–P9; resta P7 = smoke de UI manual) e
-  `Docs/CHECKLIST-DEPLOY-v2.md`.
+  `Docs/HANDOFF-FASE4-PENDENCIAS.md` (P1–P9; P7 parcial — re-testar Fase 4
+  pós-correções v2.4.1) e `Docs/CHECKLIST-DEPLOY-v2.md`.
 - **Segredos**: nunca gravar tokens/API keys no repo público (o projeto é
   público no GitHub). Chaves ficam fora do workspace em
   `C:\Users\Mion\AppData\Local\Temp\opencode\*.txt`.
