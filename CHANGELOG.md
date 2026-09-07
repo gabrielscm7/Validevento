@@ -1,5 +1,25 @@
 # Changelog — Validevento
 
+## v2.4.2 — Smoke test completo aprovado · P7 DONE (2026-09-07)
+
+### Resumo
+
+Smoke test da Fase 4 concluído com sucesso no ambiente real
+(`https://www.validevento.com.br`). Validação **manual** e **QRCode** testadas e
+funcionando; bugs da v2.4.1 confirmados corrigidos no fluxo real.
+
+### ✅ Validações executadas (07/09, noite)
+
+- Login master → `/master`; cliente + cotas; usuário admin → e-mail de ativação
+  (Resend verificado).
+- Evento + importação CSV de 15 convites ("Evento Teste" `9b658259-…`).
+- **Validação manual e por QRCode**: OK.
+- BUG-03/05/06 (config/edição, UUID no terminal, dashboard/ativar) corrigidos e
+  confirmados no fluxo real.
+- Cópia dos 15 convites de teste: `Downloads/validevento-15-convites.csv`/`.md`.
+
+---
+
 ## v2.4.1 — Correções do smoke test em produção (2026-09-07)
 
 ### Resumo

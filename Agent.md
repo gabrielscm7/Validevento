@@ -150,8 +150,8 @@ em dashboard em tempo real; Supervisor opera portões, relatórios e o evento.
   (`delivered`). `FRONTEND_URL`/`EMAIL_FROM`/`CORS_ORIGIN` apontam para o
   domínio próprio. Envio do link do evento à equipe: `POST /api/events/:id/share`.
 - **Pendências de produção** e status atual: ver
-  `Docs/HANDOFF-FASE4-PENDENCIAS.md` (P1–P9; P7 parcial — re-testar Fase 4
-  pós-correções v2.4.1) e `Docs/CHECKLIST-DEPLOY-v2.md`.
+  `Docs/HANDOFF-FASE4-PENDENCIAS.md` (P1–P9 — **todas DONE** após smoke test
+  aprovado em 07/09) e `Docs/CHECKLIST-DEPLOY-v2.md`.
 - **Segredos**: nunca gravar tokens/API keys no repo público (o projeto é
   público no GitHub). Chaves ficam fora do workspace em
   `C:\Users\Mion\AppData\Local\Temp\opencode\*.txt`.

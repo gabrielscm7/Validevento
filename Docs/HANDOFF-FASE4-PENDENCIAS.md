@@ -32,6 +32,24 @@
 
 ---
 
+## 0d. Resultado da sessão de 07/09/2026 (noite) — Smoke test completo aprovado (P7 DONE)
+
+> **Smoke test da Fase 4 concluído com sucesso no ambiente real**
+> (`https://www.validevento.com.br` + `https://api.validevento.com.br`).
+>
+> - **Login master → `/master`**: OK (navegador).
+> - **Cliente + cotas**: OK.
+> - **Usuário admin do cliente → e-mail de ativação**: OK (Resend verificado).
+> - **Evento + importação CSV (15 convites)**: OK — evento "Evento Teste"
+>   (`9b658259-b027-4ae5-8aac-f2f841f9cfe9`) com 15 ingressos (lote LOTE-01).
+> - **Validação manual e QRCode**: OK — ambos funcionando corretamente.
+> - **Bugs anteriores ajustados**: BUG-03 (config/edição), BUG-05 (UUID no
+>   terminal), BUG-06 (dashboard/ativar) confirmados corrigidos no fluxo real.
+> - Cópia dos 15 convites de teste disponibilizada ao usuário em Downloads:
+>   `validevento-15-convites.csv` e `validevento-15-convites.md`.
+
+---
+
 ## 0b. Resultado da sessão de 07/09/2026 — Domínio próprio + Resend (v2.4.0)
 
 > **Domínio `validevento.com.br` no ar** (Cloudflare → Railway). Frontend
@@ -316,7 +334,7 @@ git push origin master
 | P4 | Migrations + master | DONE | Migrations 01→006 aplicadas (audit DELETE=false; `banner_url`/`logo_url` OK); master `gabrielscm@gmail.com` CPF `998.834.062-15` criado via SQL com o salt definitivo; login validado |
 | P5 | banner/logo no backend | DONE | Migration `006_event_branding.sql` + liberado em create/update (`events.service`/`events.controller`); teste `T-events-5`; suíte 59/59 |
 | P6 | resend-verification | DONE | `POST /api/auth/resend-verification` (token 48h, resposta genérica); testes `T-email-3/4`; suíte 59/59 |
-| P7 | Smoke test prod | IN PROGRESS | Login do master OK via API; Fase 1–4 testadas no navegador em 07/09; bugs encontrados corrigidos na v2.4.1 (config/edição, UUID no terminal, dashboard 403/loading, ativar no dashboard, link por e-mail). Pendente re-testar a Fase 4 (config salvar, importar, terminal com link, ativar) pós-deploy |
+| P7 | Smoke test prod | DONE (07/09 noite) | Smoke test completo no navegador em `https://www.validevento.com.br`: login master, cliente+cotas, admin+e-mail (Resend), evento+importação CSV (15 convites), **validação manual e QRCode OK**; bugs BUG-03/05/06 corrigidos e confirmados (v2.4.1). Convites de teste copiados para Downloads |
 | P8 | Atualizar Agent.md | DONE | `Agent.md` reescrito (frontend v2, infra Railway 100%, migrações até 006, testes 59/59) |
 | P9 | Revisões opcionais | DONE (07/09) | Seed removido do preDeploy (só `migrate`); `FRONTEND_URL`/`CORS_ORIGIN` → domínio próprio (`https://www.validevento.com.br`); domínio `validevento.com.br` **verificado na Resend** + `EMAIL_FROM="Validevento <noreply@validevento.com.br>"`; e-mail de recuperação `delivered` |
 

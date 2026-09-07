@@ -2,7 +2,7 @@
 
 **Data de execução:** 06/09/2026
 **Fase:** 4 de 4 (frontend completo) — concluída.
-**Status:** ✅ Frontend pronto (16 testes, build e lint OK) · ✅ **Produção no ar** (backend e frontend deployados em `29c1222`; `/health` 200) · ✅ **Domínio próprio + Resend (07/09, v2.4.0)** · ✅ **Correções do smoke test (07/09, v2.4.1)** · 🟡 Re-testar a Fase 4 pós-correções (passos §6).
+**Status:** ✅ Frontend pronto (16 testes, build e lint OK) · ✅ **Produção no ar** (backend e frontend deployados; `/health` 200) · ✅ **Domínio próprio + Resend (07/09, v2.4.0)** · ✅ **Correções do smoke test (07/09, v2.4.1)** · ✅ **Smoke test completo aprovado (07/09 noite — P7 DONE)**.
 
 ---
 
@@ -114,14 +114,16 @@
 
 ## 6. Smoke test em produção (passos manuais)
 
-Após `git push origin master` + deploy OK (feitos em 06/09; domínio próprio em 07/09):
+✅ **Concluído em 07/09/2026 (noite)** — P7 DONE.
 
-1. Login com CPF do master → deve ir para `/master`. ✅ **feito via API** (200, role master); falta confirmar no navegador a rota `/master` em `https://www.validevento.com.br`.
-2. Criar cliente + definir cotas. ⬜ navegador
-3. Criar usuário admin do cliente → e-mail de ativação (Resend verificado em 07/09 — recuperação testada `delivered`; falta testar a ativação). ⬜ navegador + conferir caixa de e-mail
-4. Criar evento + importar CSV de teste (lote). ⬜ navegador
-5. Abrir `/terminal/:eventId` no celular, instalar PWA e validar um ingresso (QR + busca manual). ⬜ navegador
-6. Conferir o log no dashboard/supervisor e gerar/baixar relatório Markdown e CSV. ⬜ navegador
+1. Login com CPF do master → `/master` em `https://www.validevento.com.br`. ✅
+2. Criar cliente + definir cotas. ✅
+3. Criar usuário admin do cliente → e-mail de ativação (Resend verificado). ✅
+4. Criar evento + importar CSV de teste — evento "Evento Teste" com 15 convites (LOTE-01). ✅
+5. Abrir `/terminal/:eventId` e validar ingresso — **validação manual e QRCode OK**. ✅
+6. Dashboard/supervisor + relatórios — OK. ✅
+
+> Cópia dos 15 convites de teste: `Downloads/validevento-15-convites.csv` e `.md`.
 
 ---
 
