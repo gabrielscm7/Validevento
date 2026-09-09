@@ -108,4 +108,24 @@ describe('Validação de QRCode (Parte F / BUG-01)', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_event_id');
   });
+
+  test('T-search-min: Busca com < 3 caracteres retorna 400', async () => {
+    const res = await api()
+      .get('/api/validation/search')
+      .set(auth(validatorToken))
+      .query({ event_id: eventId, q: 'ab' });
+
+    expect(res.status).toBe(400);
+  });
+
+  test('T-search-limit: Busca com string > 100 chars não quebra', async () => {
+    const longQuery = 'x'.repeat(200);
+    const res = await api()
+      .get('/api/validation/search')
+      .set(auth(validatorToken))
+      .query({ event_id: eventId, q: longQuery });
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.results)).toBe(true);
+  });
 });

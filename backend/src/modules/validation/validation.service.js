@@ -445,11 +445,15 @@ async function useMaster({ eventId, terminalId, validatorId, beneficiaryName, te
 }
 
 async function searchTickets(eventId, queryText, tenantId) {
-  if (!queryText || queryText.length < 3) {
-    throw new Error('A busca requer no mínimo 3 caracteres.');
+  if (!queryText || queryText.trim().length < 3) {
+    const err = new Error('A busca requer no mínimo 3 caracteres.');
+    err.status = 400;
+    err.code = 'search_min_length';
+    throw err;
   }
 
-  const normalized = queryText.trim().toLowerCase();
+  // Sanitização: normaliza e limita o tamanho ANTES de qualquer query.
+  const normalized = queryText.trim().slice(0, 100).toLowerCase();
 
   const result = await db.query(
     `SELECT id as ticket_id, ticket_code, display_name, batch, status

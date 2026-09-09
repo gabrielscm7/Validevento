@@ -22,6 +22,10 @@ function forbidden(res) {
   return res.status(403).json({ error: 'not_in_event_team', message: 'Acesso negado: usuário não faz parte da equipe deste evento.' });
 }
 
+// Apenas perfis operacionais são restritos a eventos ativos.
+// Admin e master passam independente do status (draft/closed).
+const RESTRICTED_ROLES = ['validator', 'supervisor'];
+
 async function eventAccess(req, res, next) {
   try {
     const eventId = req.params.eventId || req.params.id;
@@ -76,6 +80,15 @@ async function eventAccess(req, res, next) {
     }
 
     const roleOverride = teamResult.rows[0].role_override;
+
+    // Eventos em draft/closed são inacessíveis para validator/supervisor.
+    if (RESTRICTED_ROLES.includes(role) && event.status !== 'active') {
+      return res.status(403).json({
+        error: 'Este evento não está ativo.',
+        event_status: event.status,
+      });
+    }
+
     req.event = event;
     req.eventRole = roleOverride || role;
     return next();

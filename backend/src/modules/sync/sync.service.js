@@ -364,9 +364,21 @@ async function processOfflineLogs(eventId, terminalId, validatorId, logs, tenant
   let ignored = 0;
   const errors = [];
 
+  const FIVE_MINUTES = 5 * 60 * 1000;
+
   for (const log of logs) {
     const localId = log.local_id !== undefined ? log.local_id : (log.id !== undefined ? log.id : null);
-    const createdAt = isValidDate(log.created_at) ? new Date(log.created_at) : new Date();
+    let createdAt = isValidDate(log.created_at) ? new Date(log.created_at) : new Date();
+
+    // Corrige timestamps futuros (relógio do terminal adiantado) para now().
+    if (createdAt.getTime() > Date.now() + FIVE_MINUTES) {
+      console.warn(
+        `[sync] Log ${localId}: timestamp futuro corrigido de ` +
+        `${log.created_at} para now()`
+      );
+      createdAt = new Date();
+    }
+
     const client = await db.pool.connect();
 
     try {

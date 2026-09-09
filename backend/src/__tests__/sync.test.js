@@ -224,4 +224,37 @@ describe('Sync offline (Fase 3)', () => {
     );
     expect(row.rows[0].online).toBe(false);
   });
+
+  test('T-sync-future: Log com timestamp 2h no futuro é corrigido para now()', async () => {
+    const event = await makeEvent('Evento Sync-Futuro');
+    const ticket = await newTicket(event.id);
+
+    const futureIso = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(); // agora() + 2h
+
+    const res = await api()
+      .post('/api/sync/logs')
+      .set(auth(validatorToken))
+      .send({
+        event_id: event.id,
+        terminal_id: crypto.randomUUID(),
+        logs: [{
+          local_id: 'future-1',
+          ticket_code: ticket.ticket_code,
+          entry_type: 'qrcode',
+          created_at: futureIso,
+        }],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.processed).toBe(1);
+    expect(res.body.errors).toHaveLength(0);
+
+    const logRes = await pool.query(
+      `SELECT created_at FROM entry_logs WHERE ticket_id = $1`,
+      [ticket.id]
+    );
+    expect(logRes.rows.length).toBe(1);
+    const diffMs = Math.abs(new Date(logRes.rows[0].created_at).getTime() - Date.now());
+    expect(diffMs).toBeLessThan(10000);
+  });
 });

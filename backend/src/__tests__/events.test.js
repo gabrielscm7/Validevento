@@ -194,4 +194,71 @@ describe('Gestão de eventos (Fase 2)', () => {
     expect(res.body.sent[0]).toBe(member.email);
     expect(res.body.total).toBe(1);
   });
+
+  test('T-draft-1: Admin acessa evento draft', async () => {
+    const event = await createEventViaApi('Evento Draft Admin');
+
+    const res = await api()
+      .get(`/api/events/${event.id}`)
+      .set(auth(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(event.id);
+  });
+
+  test('T-draft-2: Validador designado não acessa evento draft → 403', async () => {
+    const event = await createEventViaApi('Evento Draft Restrito');
+
+    const validator = await createUser({
+      tenant_id: client.id,
+      role: 'validator',
+      password: 'senha123',
+      email_verified: true,
+    });
+    const validatorToken = await loginToken(validator.plain_cpf, validator.plain_password);
+
+    const add = await api()
+      .post(`/api/events/${event.id}/team`)
+      .set(auth(adminToken))
+      .send({ user_id: validator.id });
+    expect(add.status).toBe(201);
+
+    const res = await api()
+      .get(`/api/events/${event.id}`)
+      .set(auth(validatorToken));
+
+    expect(res.status).toBe(403);
+    expect(res.body.event_status).toBe('draft');
+  });
+
+  test('T-legacy-1: Relatório de evento sem event_config retorna 200', async () => {
+    const legacy = await createEvent({
+      tenant_id: client.id,
+      name: 'Evento Legado Sem Config',
+    });
+
+    const res = await api()
+      .get(`/api/events/${legacy.id}/reports/md`)
+      .set(auth(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/markdown');
+    expect(res.text).toContain('# Relatório de Evento');
+  });
+
+  test('T-legacy-2: Dashboard de evento legado retorna 200 com zeros', async () => {
+    const legacy = await createEvent({
+      tenant_id: client.id,
+      name: 'Evento Legado Dashboard',
+    });
+
+    const res = await api()
+      .get(`/api/events/${legacy.id}/dashboard/summary`)
+      .set(auth(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.total_tickets).toBe(0);
+    expect(res.body.validated).toBe(0);
+    expect(res.body.duplicate_attempts).toBe(0);
+  });
 });

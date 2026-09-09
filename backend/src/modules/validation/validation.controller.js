@@ -152,7 +152,7 @@ async function search(req, res) {
     return res.status(200).json({ results });
   } catch (error) {
     console.error('Erro na busca de tickets:', error.message);
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error);
   }
 }
 
