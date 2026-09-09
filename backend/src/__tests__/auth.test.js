@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const helpers = require('./helpers');
-const { api, resetDb, createClient, createUser } = helpers;
+const { api, resetDb, createClient, createUser, loginToken, auth } = helpers;
 
 describe('Autenticação com CPF (Parte D)', () => {
   beforeAll(async () => {
@@ -199,5 +199,96 @@ describe('Autenticação com CPF (Parte D)', () => {
       ['ja-verificado@teste.com']
     );
     expect(tokenRes.rows[0].email_token).toBeNull();
+  });
+
+  test('T-reset-exp: Token de reset expirado não redefine senha', async () => {
+    const client = await createClient();
+    const past = new Date(Date.now() - 2 * 60 * 60 * 1000); // agora() - 2h
+    const user = await createUser({
+      tenant_id: client.id,
+      role: 'supervisor',
+      email_verified: true,
+      activationToken: 'reset-token-expirado-hotfix',
+      activationExp: past,
+    });
+
+    const beforeRes = await helpers.pool.query(
+      'SELECT password_hash FROM users WHERE id = $1',
+      [user.id]
+    );
+    const before = beforeRes.rows[0].password_hash;
+
+    const res = await api()
+      .post('/api/auth/reset-password')
+      .send({ token: 'reset-token-expirado-hotfix', password: 'NovaSenhaSegura1' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_or_expired_token');
+
+    const afterRes = await helpers.pool.query(
+      'SELECT password_hash FROM users WHERE id = $1',
+      [user.id]
+    );
+    expect(afterRes.rows[0].password_hash).toBe(before);
+  });
+
+  test('T-reset-ok: Token de reset válido redefine a senha', async () => {
+    const client = await createClient();
+    const future = new Date(Date.now() + 60 * 60 * 1000); // agora() + 1h
+    const user = await createUser({
+      tenant_id: client.id,
+      role: 'validator',
+      email_verified: true,
+      activationToken: 'reset-token-valido-hotfix',
+      activationExp: future,
+    });
+
+    const res = await api()
+      .post('/api/auth/reset-password')
+      .send({ token: 'reset-token-valido-hotfix', password: 'NovaSenhaValida1' });
+
+    expect(res.status).toBe(200);
+
+    // O login passa a funcionar com a nova senha
+    const loginRes = await api()
+      .post('/api/auth/login')
+      .send({ cpf: user.plain_cpf, password: 'NovaSenhaValida1' });
+    expect(loginRes.status).toBe(200);
+  });
+
+  test('T-health-public: GET /health retorna apenas status e timestamp', async () => {
+    const res = await api().get('/health');
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(res.body.timestamp).toBeTruthy();
+    expect(res.body).not.toHaveProperty('memory');
+    expect(res.body).not.toHaveProperty('uptime');
+  });
+
+  test('T-health-private: GET /api/health exige autenticação master', async () => {
+    // Sem token → 401
+    const anon = await api().get('/api/health');
+    expect(anon.status).toBe(401);
+
+    // Token de validador → 403
+    const client = await createClient();
+    const validator = await createUser({
+      tenant_id: client.id,
+      role: 'validator',
+      password: 'senha123',
+      email_verified: true,
+    });
+    const vToken = await loginToken(validator.plain_cpf, 'senha123');
+    const forbidden = await api().get('/api/health').set(auth(vToken));
+    expect(forbidden.status).toBe(403);
+
+    // Token de master → 200 com memory e uptime
+    const master = await createUser({ role: 'master', password: 'senha123', email_verified: true });
+    const mToken = await loginToken(master.plain_cpf, 'senha123');
+    const ok = await api().get('/api/health').set(auth(mToken));
+    expect(ok.status).toBe(200);
+    expect(ok.body.memory).toBeTruthy();
+    expect(typeof ok.body.uptime).toBe('number');
   });
 });

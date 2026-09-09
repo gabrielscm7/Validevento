@@ -4,6 +4,8 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const env = require('./config/env');
 const database = require('./config/database');
+const authMiddleware = require('./middleware/auth');
+const requireRole = require('./middleware/roles');
 
 // Importar rotas
 const authRoutes       = require('./modules/auth/auth.routes');
@@ -87,28 +89,33 @@ app.use(express.urlencoded({ extended: true }));
 
 // ────────────────────────────────────────────────
 // Rota de Diagnóstico / Health Monitor
+// Apenas master — não expor detalhes internos publicamente.
 // ────────────────────────────────────────────────
-app.get('/api/health', async (req, res) => {
-  const diagnostics = {
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    env: env.nodeEnv,
-    database: 'unknown',
-    memory: process.memoryUsage(),
-  };
+app.get('/api/health',
+  authMiddleware,
+  requireRole('master'),
+  async (req, res) => {
+    const diagnostics = {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      env: env.nodeEnv,
+      database: 'unknown',
+      memory: process.memoryUsage(),
+    };
 
-  try {
-    await database.testConnection();
-    diagnostics.database = 'connected';
-  } catch (error) {
-    diagnostics.status = 'error';
-    diagnostics.database = 'disconnected';
-    diagnostics.error = error.message;
+    try {
+      await database.testConnection();
+      diagnostics.database = 'connected';
+    } catch (error) {
+      diagnostics.status = 'error';
+      diagnostics.database = 'disconnected';
+      diagnostics.error = error.message;
+    }
+
+    return res.status(diagnostics.status === 'ok' ? 200 : 500).json(diagnostics);
   }
-
-  return res.status(diagnostics.status === 'ok' ? 200 : 500).json(diagnostics);
-});
+);
 
 // ── Desabilitar ETag (causa 304 via Cloudflare) ──
 app.disable('etag');

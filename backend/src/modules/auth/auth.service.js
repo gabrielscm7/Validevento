@@ -166,7 +166,7 @@ async function resetPassword(token, password) {
   }
 
   const result = await db.query(
-    `SELECT id, email_verified FROM users
+    `SELECT id, email_verified, email_token_exp FROM users
      WHERE email_token = $1`,
     [token]
   );
