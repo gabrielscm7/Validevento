@@ -25,3 +25,8 @@ export async function changeEventStatus(eventId, status) {
   const { data } = await api.patch(`/api/events/${eventId}/status`, { status })
   return data
 }
+
+export async function purgeEventData(eventId) {
+  const { data } = await api.delete(`/api/events/${eventId}/purge`)
+  return data
+}

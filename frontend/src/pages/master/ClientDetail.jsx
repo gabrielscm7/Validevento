@@ -7,6 +7,8 @@ import { listEvents } from '../../services/eventsService'
 import { listUsers } from '../../services/usersService'
 import { getAuditLog } from '../../services/reportsService'
 import { formatDateTime, ROLE_LABEL } from '../../lib/format'
+import PurgeEventModal from '../../components/PurgeEventModal'
+import { toast } from 'sonner'
 
 function QuotaBar({ label, used, max }) {
   const pct = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0
@@ -42,6 +44,7 @@ export default function ClientDetail() {
   const [tab, setTab] = useState('overview')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [purgeEvent, setPurgeEvent] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -159,6 +162,19 @@ export default function ClientDetail() {
                 <span className={`badge ${
                   e.status === 'active' ? 'badge-green' : e.status === 'draft' ? 'badge-gray' : 'badge-red'
                 }`}>{e.status}</span>
+                {(e.status === 'closed' || e.status === 'purged') && (
+                  <button
+                    type="button"
+                    className="btn-icon btn-ghost"
+                    disabled={e.status === 'purged'}
+                    title={e.status === 'purged' ? 'Dados já apagados' : 'Apagar dados do evento'}
+                    onClick={() => e.status === 'closed' && setPurgeEvent(e)}
+                    aria-label={e.status === 'purged' ? 'Dados já apagados' : `Apagar dados de ${e.name}`}
+                    style={{ color: e.status === 'purged' ? 'var(--text-muted)' : 'var(--danger)' }}
+                  >
+                    🗑
+                  </button>
+                )}
               </div>
             ))}
             {(!events || events.length === 0) && (
@@ -193,6 +209,19 @@ export default function ClientDetail() {
               </table>
             </div>
           </div>
+        )}
+
+        {purgeEvent && (
+          <PurgeEventModal
+            eventId={purgeEvent.id}
+            eventName={purgeEvent.name}
+            onClose={() => setPurgeEvent(null)}
+            onSuccess={async () => {
+              setPurgeEvent(null)
+              toast.success('Dados do evento apagados com sucesso')
+              await load()
+            }}
+          />
         )}
       </div>
     </div>

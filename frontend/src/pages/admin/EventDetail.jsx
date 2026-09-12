@@ -5,10 +5,12 @@ import { PageLoader, ErrorNotice } from '../../components/feedback'
 import { Modal, Btn } from '../../components/ui'
 import ImportTicketsModal from '../../components/admin/ImportTicketsModal'
 import EventShareCard from '../../components/EventShareCard'
+import PurgeEventModal from '../../components/PurgeEventModal'
 import { getEvent, changeEventStatus } from '../../services/eventsService'
 import { createInvitation } from '../../services/eventsActionsService'
 import { formatDateTime, formatCPF } from '../../lib/format'
 import { setLastEventId } from '../../lib/lastEvent'
+import { toast } from 'sonner'
 
 export default function EventDetail() {
   const { id } = useParams()
@@ -20,6 +22,7 @@ export default function EventDetail() {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteForm, setInviteForm] = useState({ display_name: '', cpf: '' })
   const [inviteResult, setInviteResult] = useState(null)
+  const [purgeOpen, setPurgeOpen] = useState(false)
   const navigate = useNavigate()
 
   const load = useCallback(async () => {
@@ -230,6 +233,29 @@ export default function EventDetail() {
             ))}
           </div>
         </div>
+
+        {event?.status === 'closed' && (
+          <section className="card card-pad mt-4" style={{ borderTop: '2px solid var(--danger)' }}>
+            <h2 className="card-title" style={{ color: 'var(--danger)' }}>Zona de Risco</h2>
+            <p className="card-sub">Apagar todos os dados operacionais deste evento. Esta ação não pode ser desfeita.</p>
+            <Btn variant="outline" style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={() => setPurgeOpen(true)}>
+              Apagar dados do evento
+            </Btn>
+          </section>
+        )}
+
+        {purgeOpen && (
+          <PurgeEventModal
+            eventId={event.id}
+            eventName={event.name}
+            onClose={() => setPurgeOpen(false)}
+            onSuccess={async () => {
+              setPurgeOpen(false)
+              toast.success('Dados do evento apagados com sucesso')
+              await load()
+            }}
+          />
+        )}
       </div>
     </div>
   )
