@@ -39,30 +39,46 @@ function publicUser(user) {
 }
 
 /**
- * Login com CPF (com ou sem formatação) + senha.
- * Etapas: lookup por cpf_lookup_hash → e-mail verificado → tenant ativo →
+ * Login com e-mail ou CPF + senha.
+ * Etapas: lookup pelo identificador → e-mail verificado → tenant ativo →
  * senha (bcrypt) → JWT (24h).
  */
-async function login(cpf, password) {
-  if (!cpf || !password) {
-    throw httpError(400, 'CPF e senha são obrigatórios.', 'missing_fields');
+async function login(identifier, password) {
+  if (!identifier || !password) {
+    throw httpError(400, 'Identificador e senha são obrigatórios.', 'missing_fields');
   }
 
-  const lookup = cpfLookupHash(cpf);
+  const value = String(identifier).trim();
+  const isEmail = value.includes('@');
+  let user;
 
-  const result = await db.query(
-    `SELECT u.id, u.name, u.email, u.password_hash, u.role,
-            u.tenant_id, u.email_verified, u.active,
-            c.active AS tenant_active
-     FROM users u
-     LEFT JOIN clients c ON c.id = u.tenant_id
-     WHERE u.cpf_lookup_hash = $1`,
-    [lookup]
-  );
+  if (isEmail) {
+    const result = await db.query(
+      `SELECT u.id, u.name, u.email, u.password_hash, u.role,
+              u.tenant_id, u.email_verified, u.active,
+              c.active AS tenant_active
+       FROM users u
+       LEFT JOIN clients c ON c.id = u.tenant_id
+       WHERE LOWER(u.email) = LOWER($1)`,
+      [value]
+    );
+    user = result.rows[0];
+  } else {
+    const lookup = cpfLookupHash(value);
+    const result = await db.query(
+      `SELECT u.id, u.name, u.email, u.password_hash, u.role,
+              u.tenant_id, u.email_verified, u.active,
+              c.active AS tenant_active
+       FROM users u
+       LEFT JOIN clients c ON c.id = u.tenant_id
+       WHERE u.cpf_lookup_hash = $1`,
+      [lookup]
+    );
+    user = result.rows[0];
+  }
 
-  const user = result.rows[0];
   if (!user) {
-    throw httpError(401, 'CPF ou senha incorretos.', 'invalid_credentials');
+    throw httpError(401, 'Credenciais incorretas.', 'invalid_credentials');
   }
 
   if (!user.active) {
@@ -79,12 +95,12 @@ async function login(cpf, password) {
   }
 
   if (!user.password_hash) {
-    throw httpError(401, 'CPF ou senha incorretos.', 'invalid_credentials');
+    throw httpError(401, 'Credenciais incorretas.', 'invalid_credentials');
   }
 
   const passwordOk = await comparePassword(password, user.password_hash);
   if (!passwordOk) {
-    throw httpError(401, 'CPF ou senha incorretos.', 'invalid_credentials');
+    throw httpError(401, 'Credenciais incorretas.', 'invalid_credentials');
   }
 
   const token = signToken(user);

@@ -62,6 +62,25 @@ describe('Autenticação com CPF (Parte D)', () => {
     expect(p2.id).toBe(p1.id); // mesmo usuário
   });
 
+  test('T-auth-email-1: login com e-mail normalizado retorna 200 + token', async () => {
+    const client = await createClient();
+    const user = await createUser({
+      tenant_id: client.id,
+      role: 'validator',
+      email: 'email-login@teste.com',
+      cpf: '44433322211',
+      password: 'senha123',
+      email_verified: true,
+    });
+
+    const res = await api()
+      .post('/api/auth/login')
+      .send({ identifier: '  EMAIL-LOGIN@TESTE.COM  ', password: 'senha123' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.id).toBe(user.id);
+  });
+
   test('T-13: login sem e-mail verificado retorna 403 email_not_verified', async () => {
     const client = await createClient();
     const user = await createUser({

@@ -2,13 +2,14 @@ const authService = require('./auth.service');
 const { auditLog } = require('../../middleware/audit');
 
 /**
- * Controller de autenticação (login por CPF + verificação de e-mail + recuperação)
+ * Controller de autenticação (login por e-mail/CPF + verificação de e-mail + recuperação)
  */
 
 async function login(req, res) {
   try {
-    const { cpf, password } = req.body;
-    const result = await authService.login(cpf, password);
+    const { identifier, cpf, email, password } = req.body;
+    const loginIdentifier = identifier || cpf || email;
+    const result = await authService.login(loginIdentifier, password);
     return res.status(200).json(result);
   } catch (error) {
     const status = error.status || 401;
