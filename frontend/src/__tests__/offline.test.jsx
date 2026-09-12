@@ -2,8 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import { useOffline } from '../hooks/useOffline'
 import { SyncStatus } from '../components/SyncStatus'
+import { db, setEventId } from '../services/localDB'
 
 const mocks = vi.hoisted(() => ({ syncWithServer: vi.fn(), getLastSync: vi.fn() }))
+const apiMocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
+vi.mock('../services/api', () => ({
+  default: { get: apiMocks.get, post: apiMocks.post },
+}))
 vi.mock('../services/syncService', () => ({
   syncWithServer: mocks.syncWithServer,
   startAutoSync: vi.fn(),
@@ -59,5 +64,45 @@ describe('SyncStatus', () => {
     await waitFor(() => {
       expect(screen.getByText(/offline · sync 14:30/i)).toBeInTheDocument()
     })
+  })
+})
+
+describe('syncWithServer', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    await db.tickets.clear()
+    await db.entry_logs.clear()
+    await db.meta.clear()
+    await setEventId('evt-123')
+    apiMocks.post.mockResolvedValue({ data: { terminal_id: 'term-1' } })
+  })
+
+  it('T-offline-3: preserva o id local ao mesclar ticket do snapshot', async () => {
+    const localId = await db.tickets.add({
+      ticket_code: 'ticket-1',
+      event_id: 'evt-123',
+      status: 'active',
+      updated_at: '2026-09-10T10:00:00.000Z',
+    })
+    apiMocks.get.mockResolvedValueOnce({
+      data: {
+        tickets: [{
+          id: 9999,
+          ticket_code: 'ticket-1',
+          event_id: 'evt-123',
+          status: 'blocked',
+          updated_at: '2026-09-10T11:00:00.000Z',
+        }],
+        last_sync_at: '2026-09-10T11:00:00.000Z',
+        total: 1,
+      },
+    })
+
+    const { syncWithServer } = await vi.importActual('../services/syncService')
+    await syncWithServer()
+
+    const tickets = await db.tickets.toArray()
+    expect(tickets).toHaveLength(1)
+    expect(tickets[0]).toMatchObject({ id: localId, status: 'blocked' })
   })
 })

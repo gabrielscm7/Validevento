@@ -109,7 +109,11 @@ export async function syncWithServer() {
       const localUpdated = local.updated_at ? new Date(local.updated_at).getTime() : 0
       const serverUpdated = ticket.updated_at ? new Date(ticket.updated_at).getTime() : 0
       if (localUpdated > serverUpdated) continue
-      await db.tickets.put({ ...local, ...ticket, event_id: eventId })
+      await db.tickets.put({
+        ...ticket,
+        id: local.id,
+        event_id: eventId,
+      })
     }
 
     // 6. Atualiza timestamp do último sync
