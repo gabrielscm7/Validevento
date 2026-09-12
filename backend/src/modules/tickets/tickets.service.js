@@ -102,4 +102,67 @@ async function unblockTicket(params) {
   return setTicketStatus({ ...params, newStatus: 'active', allowFromValidated: false });
 }
 
-module.exports = { listTickets, getTicketById, blockTicket, unblockTicket };
+function validateTicketIds(ticketIds) {
+  return (Array.isArray(ticketIds) ? ticketIds : []).filter(isValidUUIDv4);
+}
+
+async function cancelInvitations({ eventId, tenantId, ticketIds = [], batch, allGenerated }) {
+  const ids = validateTicketIds(ticketIds);
+  const params = [eventId, tenantId || null];
+  let where = `event_id = $1 AND ($2::uuid IS NULL OR tenant_id = $2)
+              AND origin IN ('cortesia', 'liberacao_especial')
+              AND status <> 'cancelled'`;
+
+  if (ids.length > 0) {
+    params.push(ids);
+    where += ` AND id = ANY($${params.length}::uuid[])`;
+  } else if (batch) {
+    params.push(String(batch));
+    where += ` AND batch = $${params.length}`;
+  } else if (!allGenerated) {
+    throw apiError(400, 'cancel_scope_required', 'Informe ticket_ids, batch ou all_generated.');
+  }
+
+  const result = await db.query(
+    `UPDATE tickets SET status = 'cancelled', updated_at = NOW()
+     WHERE ${where}
+     RETURNING id, ticket_code`,
+    params
+  );
+  return { cancelled: result.rowCount, ticket_ids: result.rows.map((row) => row.id) };
+}
+
+async function resetValidations({ eventId, tenantId, ticketIds = [], batch, all }) {
+  const ids = validateTicketIds(ticketIds);
+  const params = [eventId, tenantId || null];
+  let where = `event_id = $1 AND ($2::uuid IS NULL OR tenant_id = $2)
+              AND status = 'validated'`;
+
+  if (ids.length > 0) {
+    params.push(ids);
+    where += ` AND id = ANY($${params.length}::uuid[])`;
+  } else if (batch) {
+    params.push(String(batch));
+    where += ` AND batch = $${params.length}`;
+  } else if (!all) {
+    throw apiError(400, 'reset_scope_required', 'Informe ticket_ids, batch ou all.');
+  }
+
+  const result = await db.query(
+    `UPDATE tickets
+     SET status = 'active', validated_at = NULL, checkout_at = NULL, updated_at = NOW()
+     WHERE ${where}
+     RETURNING id`,
+    params
+  );
+  return { reset: result.rowCount, ticket_ids: result.rows.map((row) => row.id) };
+}
+
+module.exports = {
+  listTickets,
+  getTicketById,
+  blockTicket,
+  unblockTicket,
+  cancelInvitations,
+  resetValidations,
+};

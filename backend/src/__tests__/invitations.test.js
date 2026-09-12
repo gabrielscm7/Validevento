@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const helpers = require('./helpers');
 const {
-  api, resetDb, createClient, createUser, loginToken, auth, pool,
+  api, resetDb, createClient, createUser, createTicket, loginToken, auth, pool,
 } = helpers;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -86,6 +86,48 @@ describe('Ingressos de emergência (Fase 2)', () => {
 
     expect(validacao.status).toBe(200);
     expect(validacao.body.status).toBe('authorized');
+  });
+
+  test('T-inv-reset: cancelamento e reset administrativo preservam o histórico', async () => {
+    const invite = await api()
+      .post(`/api/events/${eventId}/invitations`)
+      .set(auth(adminToken))
+      .send({ display_name: 'Convite Cancelado' });
+    expect(invite.status).toBe(201);
+
+    const cancel = await api()
+      .post(`/api/events/${eventId}/invitations/cancel`)
+      .set(auth(adminToken))
+      .send({ ticket_ids: [invite.body.id] });
+    expect(cancel.status).toBe(200);
+    expect(cancel.body.cancelled).toBe(1);
+
+    const cancelledValidation = await api()
+      .post('/api/validation/qrcode')
+      .set(auth(validatorToken))
+      .send({ ticket_code: invite.body.ticket_code, event_id: eventId });
+    expect(cancelledValidation.body.status).toBe('cancelled');
+
+    const ticket = await createTicket({
+      event_id: eventId,
+      tenant_id: client.id,
+      ticket_code: crypto.randomUUID(),
+      batch: 'RESET-TESTE',
+      display_name: 'Ticket Reset',
+      status: 'active',
+    });
+    const validation = await api()
+      .post('/api/validation/qrcode')
+      .set(auth(validatorToken))
+      .send({ ticket_code: ticket.ticket_code, event_id: eventId });
+    expect(validation.body.status).toBe('authorized');
+
+    const reset = await api()
+      .post(`/api/events/${eventId}/validations/reset`)
+      .set(auth(adminToken))
+      .send({ ticket_ids: [ticket.id] });
+    expect(reset.status).toBe(200);
+    expect(reset.body.reset).toBe(1);
   });
 
   test('T-09: Ingresso master sem limite de usos → 3 usos authorized, uses_remaining null', async () => {

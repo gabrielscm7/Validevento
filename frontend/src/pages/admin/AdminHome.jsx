@@ -79,6 +79,9 @@ export default function AdminHome() {
             <Btn variant="primary" size="lg" onClick={() => navigate('/admin/eventos/novo')}>
               + Criar evento
             </Btn>
+            <Btn variant="outline" size="lg" onClick={() => navigate('/admin/usuarios')}>
+              Usuários
+            </Btn>
           </div>
         </section>
 

@@ -33,7 +33,8 @@ export function AlertsFeed({ data, loading }) {
                 </p>
                 <p className="text-xs text-muted truncate">
                   {a.validator_name || ''}
-                  {a.terminal_name ? ` · ${a.terminal_name}` : ''} · {formatTimeSec(a.created_at)}
+                   {a.terminal_name ? ` · ${a.terminal_name}` : ''}
+                   {a.gate_name ? ` · ${a.gate_name}` : ''} · {formatTimeSec(a.created_at)}
                 </p>
               </div>
               <span className={`badge ${meta.cls}`}>{meta.label}</span>

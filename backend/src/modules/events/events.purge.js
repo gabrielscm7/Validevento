@@ -57,11 +57,7 @@ async function purgeEventData(eventId, tenantId, userId) {
       await client.query(`DELETE FROM ${table} WHERE event_id = $1`, [eventId]);
     }
 
-    await client.query(
-      `DELETE FROM audit_logs
-       WHERE event_id = $1 AND action != 'event_data_purged'`,
-      [eventId]
-    );
+    // audit_logs são imutáveis; o histórico do evento permanece preservado.
     await client.query(
       `UPDATE events SET status = 'purged' WHERE id = $1`,
       [eventId]

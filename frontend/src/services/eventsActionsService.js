@@ -71,6 +71,16 @@ export async function unblockTicket(eventId, ticketId) {
   return data
 }
 
+export async function cancelInvitations(eventId, payload) {
+  const { data } = await api.post(`/api/events/${eventId}/invitations/cancel`, payload)
+  return data
+}
+
+export async function resetValidations(eventId, payload) {
+  const { data } = await api.post(`/api/events/${eventId}/validations/reset`, payload)
+  return data
+}
+
 // ── Ingressos de emergência ──
 export async function getMasterTicket(eventId) {
   const { data } = await api.get(`/api/events/${eventId}/master-ticket`)

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   getDashboardSummary, getDashboardFlow, getDashboardBatches,
-  getDashboardAlerts, getDashboardTerminals, getDashboardLiveFeed, getDashboardSpeed,
+  getDashboardGates, getDashboardAlerts, getDashboardTerminals, getDashboardLiveFeed, getDashboardSpeed,
 } from '../services/dashboardService'
 
 /**
@@ -17,17 +17,18 @@ export function useDashboardData(eventId) {
   const reload = useCallback(async () => {
     if (!eventId) return
     try {
-      const [summary, flow, batches, alerts, terminals, liveFeed, speed] = await Promise.all([
+      const [summary, flow, batches, gates, alerts, terminals, liveFeed, speed] = await Promise.all([
         getDashboardSummary(eventId),
         getDashboardFlow(eventId),
         getDashboardBatches(eventId),
+        getDashboardGates(eventId),
         getDashboardAlerts(eventId),
         getDashboardTerminals(eventId),
         getDashboardLiveFeed(eventId),
         getDashboardSpeed(eventId),
       ])
       if (!mounted.current) return
-      setData({ summary, flow, batches, alerts, terminals, liveFeed, speed })
+      setData({ summary, flow, batches, gates, alerts, terminals, liveFeed, speed })
       setError(null)
     } catch (e) {
       if (!mounted.current) return

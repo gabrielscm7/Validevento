@@ -10,6 +10,7 @@ import { useDashboardData } from '../../hooks/useDashboardData'
 import { SummaryCards } from '../../components/dashboard/SummaryCards'
 import { EntryChart } from '../../components/dashboard/EntryChart'
 import { BatchTable } from '../../components/dashboard/BatchTable'
+import { GateTable } from '../../components/dashboard/GateTable'
 import { TerminalsStatus } from '../../components/dashboard/TerminalsStatus'
 import { LiveFeed } from '../../components/dashboard/LiveFeed'
 import { AlertsFeed } from '../../components/dashboard/AlertsFeed'
@@ -233,6 +234,10 @@ export default function EventDashboard() {
             <div className="grid grid-cols-2 mt-4">
               <EntryChart data={dash.data?.flow} loading={dash.loading} />
               <BatchTable data={dash.data?.batches} loading={dash.loading} />
+            </div>
+
+            <div className="mt-4">
+              <GateTable data={dash.data?.gates} loading={dash.loading} />
             </div>
 
             <div className="grid grid-cols-2 mt-4">

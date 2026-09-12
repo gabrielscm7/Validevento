@@ -30,7 +30,8 @@ async function checkTicketQuota(eventId, tenantId, extra = 0) {
   const max = clientRes.rows[0].max_tickets_per_event;
 
   const usedRes = await db.query(
-    'SELECT COUNT(*)::int AS used FROM tickets WHERE event_id = $1',
+    `SELECT COUNT(*)::int AS used FROM tickets
+     WHERE event_id = $1 AND status <> 'cancelled'`,
     [eventId]
   );
   const used = usedRes.rows[0].used;
@@ -198,12 +199,30 @@ async function useMasterTicket({ eventId, tenantId, terminalId, validatorId, ben
       [mt.id, newUses]
     );
 
+    let gateId = null;
+    if (terminalId) {
+      const terminalRes = await client.query(
+        `SELECT t.gate_id, g.opened_at, g.closed_at
+         FROM terminals t
+         LEFT JOIN gates g ON g.id = t.gate_id
+         WHERE t.id = $1 AND t.event_id = $2`,
+        [terminalId, eventId]
+      );
+      const terminal = terminalRes.rows[0];
+      if (terminal?.gate_id) {
+        if (!terminal.opened_at || terminal.closed_at) {
+          throw apiError(422, 'gate_not_open', 'O portão selecionado está fechado. Escolha outro portão.');
+        }
+        gateId = terminal.gate_id;
+      }
+    }
+
     const logRes = await client.query(
       `INSERT INTO entry_logs
-         (ticket_id, event_id, tenant_id, entry_type, beneficiary, terminal_id, validator_id, is_duplicate, synced)
-       VALUES (NULL, $1, $2, 'master', $3, $4, $5, false, true)
+         (ticket_id, event_id, tenant_id, entry_type, beneficiary, terminal_id, validator_id, gate_id, is_duplicate, synced)
+       VALUES (NULL, $1, $2, 'master', $3, $4, $5, $6, false, true)
        RETURNING id`,
-      [eventId, tenantId, String(beneficiaryName).trim(), terminalId || null, validatorId || null]
+      [eventId, tenantId, String(beneficiaryName).trim(), terminalId || null, validatorId || null, gateId]
     );
 
     await client.query('COMMIT');

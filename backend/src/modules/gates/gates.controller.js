@@ -72,4 +72,34 @@ async function close(req, res) {
   }
 }
 
-module.exports = { list, create, open, close };
+async function getTerminalGate(req, res) {
+  try {
+    const data = await gatesService.getTerminalGate({
+      eventId: req.event.id,
+      terminalId: req.params.terminalId,
+    });
+    return res.status(200).json(data);
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+async function setTerminalGate(req, res) {
+  try {
+    const data = await gatesService.setTerminalGate({
+      eventId: req.event.id,
+      terminalId: req.params.terminalId,
+      gateId: req.body.gate_id || null,
+    });
+    req.params.eventId = req.event.id;
+    await auditLog(req, 'terminal_gate_assigned', 'terminal', req.params.terminalId, {
+      gate_id: data.gate_id,
+      gate_name: data.gate_name,
+    });
+    return res.status(200).json(data);
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+module.exports = { list, create, open, close, getTerminalGate, setTerminalGate };

@@ -318,6 +318,8 @@ describe('Gestão de eventos (Fase 2)', () => {
       `SELECT action FROM audit_logs WHERE event_id = $1`,
       [event.id]
     );
-    expect(auditRows.rows.map((row) => row.action)).toEqual(['event_data_purged']);
+    expect(auditRows.rows.map((row) => row.action)).toEqual(
+      expect.arrayContaining(['test_event_data', 'event_data_purged'])
+    );
   });
 });

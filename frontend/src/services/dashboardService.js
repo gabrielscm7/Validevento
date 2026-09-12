@@ -16,6 +16,11 @@ export async function getDashboardBatches(eventId) {
   return data
 }
 
+export async function getDashboardGates(eventId) {
+  const { data } = await api.get(`/api/events/${eventId}/dashboard/gates`)
+  return data
+}
+
 export async function getDashboardAlerts(eventId) {
   const { data } = await api.get(`/api/events/${eventId}/dashboard/alerts`)
   return data

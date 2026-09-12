@@ -37,6 +37,15 @@ async function getBatches(req, res) {
   }
 }
 
+async function getGates(req, res) {
+  try {
+    const data = await dashboardService.getGates(req.event.id, req.tenantId);
+    return res.status(200).json(data);
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
 async function getAlerts(req, res) {
   try {
     const data = await dashboardService.getAlerts(req.event.id, req.tenantId, {
@@ -81,6 +90,7 @@ module.exports = {
   getSummary,
   getFlow,
   getBatches,
+  getGates,
   getAlerts,
   getTerminals,
   getLiveFeed,

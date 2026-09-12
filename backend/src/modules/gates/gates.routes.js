@@ -11,6 +11,19 @@ router.use(authMiddleware);
 // GET /api/events/:eventId/gates
 router.get('/:eventId/gates', eventAccess, gatesController.list);
 
+router.get(
+  '/:eventId/terminals/:terminalId/gate',
+  eventAccess,
+  gatesController.getTerminalGate
+);
+
+router.patch(
+  '/:eventId/terminals/:terminalId/gate',
+  requireRole('validator', 'supervisor', 'admin', 'master'),
+  eventAccess,
+  gatesController.setTerminalGate
+);
+
 // POST /api/events/:eventId/gates — supervisor/admin/master
 router.post(
   '/:eventId/gates',

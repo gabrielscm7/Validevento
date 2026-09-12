@@ -4,7 +4,7 @@ const {
   api, resetDb, pool, createClient, createUser, createTicket, loginToken, auth,
 } = helpers;
 
-const CSV_HEADER = 'ticket_code,display_name,batch,origin,status,entry_type,is_duplicate,validator_name,terminal_name,entry_at,checkout_at';
+const CSV_HEADER = 'ticket_code,display_name,batch,origin,status,entry_type,is_duplicate,validator_name,terminal_name,gate_name,entry_at,checkout_at';
 
 describe('Relatórios (Fase 3)', () => {
   let client;

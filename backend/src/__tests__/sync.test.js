@@ -103,7 +103,9 @@ describe('Sync offline (Fase 3)', () => {
     expect(full.body.total).toBe(10);
 
     // Captura o ponto de referência e altera 3 tickets depois
-    const baseline = new Date();
+    // Usa o relógio do servidor para não incluir tickets criados no mesmo
+    // intervalo por diferença entre relógio do processo e PostgreSQL.
+    const baseline = new Date(full.body.last_sync_at);
     const changed = tickets.slice(0, 3);
     for (const t of changed) {
       await pool.query(
