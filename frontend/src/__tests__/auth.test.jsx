@@ -31,7 +31,7 @@ function renderLogin() {
 
 async function fillLogin({ cpf, password }) {
   const user = userEvent.setup()
-  await user.type(screen.getByLabelText(/CPF/i), cpf)
+  if (cpf) await user.type(screen.getByLabelText(/E-mail ou CPF/i), cpf)
   await user.type(screen.getByLabelText('Senha'), password)
   return user
 }
@@ -45,10 +45,34 @@ describe('Login', () => {
 
   it('T-login-1: aplica máscara no CPF', async () => {
     renderLogin()
-    const cpfInput = screen.getByLabelText(/CPF/i)
+    const cpfInput = screen.getByLabelText(/E-mail ou CPF/i)
     await userEvent.type(cpfInput, '11122233344')
     await waitFor(() => {
       expect(cpfInput).toHaveValue('111.222.333-44')
+    })
+  })
+
+  it('T-login-email-1: aceita e-mail sem aplicar máscara de CPF', async () => {
+    mocks.post.mockResolvedValueOnce({
+      data: {
+        token: 'abc',
+        user: { id: '3', name: 'Admin', role: 'admin', tenant_id: 't1' },
+      },
+    })
+    renderLogin()
+    const identifier = screen.getByLabelText(/E-mail ou CPF/i)
+    await userEvent.type(identifier, 'user@example.com')
+
+    expect(identifier).toHaveValue('user@example.com')
+
+    await fillLogin({ cpf: '', password: 'segredo123' })
+    await userEvent.click(screen.getByRole('button', { name: /Entrar/i }))
+
+    await waitFor(() => {
+      expect(mocks.post).toHaveBeenCalledWith('/api/auth/login', {
+        identifier: 'user@example.com',
+        password: 'segredo123',
+      })
     })
   })
 

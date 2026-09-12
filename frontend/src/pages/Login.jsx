@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { homeForRole } from '../lib/roles'
-import { formatCPF } from '../lib/format'
 import Logo from '../components/Logo'
 import Btn from '../components/ui'
 
@@ -10,8 +9,8 @@ const ERROR_MSGS = {
   email_not_verified: 'Confirme seu e-mail antes de acessar. Verifique sua caixa de entrada.',
   tenant_suspended: 'Acesso suspenso. Entre em contato com o administrador.',
   user_inactive: 'Usuário desativado. Contate o administrador.',
-  invalid_credentials: 'CPF ou senha incorretos.',
-  missing_fields: 'Informe CPF e senha.',
+  invalid_credentials: 'E-mail/CPF ou senha incorretos',
+  missing_fields: 'Informe seu e-mail ou CPF',
 }
 
 /** Nós + linhas animados (SVG) no painel esquerdo. */
@@ -59,7 +58,8 @@ function Particles() {
 }
 
 export default function Login() {
-  const [cpf, setCpf] = useState('')
+  const [identifier, setIdentifier] = useState('')
+  const [isCPF, setIsCPF] = useState(false)
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [error, setError] = useState('')
@@ -69,6 +69,23 @@ export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const notice = location.state?.notice || ''
+
+  function handleIdentifierChange(e) {
+    const val = e.target.value
+    const looksLikeCPF = /^[\d.\-\s]+$/.test(val) && !val.includes('@')
+
+    setIsCPF(looksLikeCPF)
+    if (looksLikeCPF) {
+      const digits = val.replace(/\D/g, '').slice(0, 11)
+      const masked = digits
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+      setIdentifier(masked)
+    } else {
+      setIdentifier(val)
+    }
+  }
 
   // Se já autenticado (ex.: sessão persistente), sai da tela de login.
   useEffect(() => {
@@ -84,7 +101,7 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      const user = await login(cpf, password)
+      const user = await login(identifier, password)
       const from = location.state?.from
       // Redireciona para onde o usuário tentava acessar, ou para a home do perfil.
       const fallback = homeForRole(user)
@@ -114,7 +131,7 @@ export default function Login() {
           <Logo withText compact />
 
           <h1 className="auth-title">Acesse sua conta</h1>
-          <p className="auth-sub">Use seu CPF e senha para entrar</p>
+           <p className="auth-sub">Use seu e-mail ou CPF e senha para entrar</p>
 
           {error && (
             <div role="alert" className="form-error" data-testid="login-error">
@@ -129,18 +146,18 @@ export default function Login() {
 
           <form id="login-form" onSubmit={handleSubmit} noValidate>
             <div className="field">
-              <label htmlFor="login-cpf" className="label">
-                CPF
-              </label>
-              <input
-                id="login-cpf"
-                name="cpf"
-                className="input"
-                placeholder="000.000.000-00"
-                inputMode="numeric"
-                autoComplete="username"
-                value={cpf}
-                onChange={(e) => setCpf(formatCPF(e.target.value))}
+               <label htmlFor="login-identifier" className="label">
+                 E-mail ou CPF
+               </label>
+               <input
+                 id="login-identifier"
+                 name="identifier"
+                 className="input"
+                 placeholder="seu@email.com ou 000.000.000-00"
+                 inputMode={isCPF ? 'numeric' : 'email'}
+                 autoComplete="username"
+                 value={identifier}
+                 onChange={handleIdentifierChange}
                 required
               />
             </div>
@@ -185,7 +202,7 @@ export default function Login() {
               size="lg"
               block
               loading={loading}
-              disabled={!cpf || !password}
+               disabled={!identifier || !password}
               className="mt-1"
             >
               {loading ? 'Entrando…' : 'Entrar'}
