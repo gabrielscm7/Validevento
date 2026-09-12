@@ -2,6 +2,7 @@
  * Controller de eventos (Fase 2).
  */
 const eventsService = require('./events.service');
+const purgeService = require('./events.purge');
 const eventTeamService = require('../event-team/event-team.service');
 const { sendEventAccessEmail } = require('../../utils/email');
 const { auditLog } = require('../../middleware/audit');
@@ -186,4 +187,18 @@ async function share(req, res) {
   }
 }
 
-module.exports = { list, create, getById, update, changeStatus, getActive, share };
+// DELETE /api/events/:eventId/purge — remove dados operacionais de evento fechado
+async function purge(req, res) {
+  try {
+    const result = await purgeService.purgeEventData(
+      req.params.eventId,
+      req.tenantId,
+      req.user.id
+    );
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+module.exports = { list, create, getById, update, changeStatus, getActive, share, purge };

@@ -6,6 +6,7 @@ const {
 describe('Gestão de eventos (Fase 2)', () => {
   let client;
   let adminToken;
+  let adminId;
   let eventId;
 
   beforeAll(async () => {
@@ -19,6 +20,7 @@ describe('Gestão de eventos (Fase 2)', () => {
       password: 'admin123',
       email_verified: true,
     });
+    adminId = admin.id;
     adminToken = await loginToken(admin.plain_cpf, 'admin123');
   });
 
@@ -260,5 +262,62 @@ describe('Gestão de eventos (Fase 2)', () => {
     expect(res.body.total_tickets).toBe(0);
     expect(res.body.validated).toBe(0);
     expect(res.body.duplicate_attempts).toBe(0);
+  });
+
+  test('T-events-purge-1: apaga dados operacionais e preserva evento fechado', async () => {
+    const event = await createEventViaApi('Festival Para Purgar');
+    const close = await api()
+      .patch(`/api/events/${event.id}/status`)
+      .set(auth(adminToken))
+      .send({ status: 'closed' });
+    expect(close.status).toBe(200);
+
+    await helpers.pool.query(
+      `INSERT INTO batches (event_id, name, capacity) VALUES ($1, 'Lote purge', 10)`,
+      [event.id]
+    );
+    const ticket = await helpers.createTicket({ event_id: event.id, tenant_id: client.id });
+    await helpers.pool.query(
+      `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type)
+       VALUES ($1, $2, $3, 'qrcode')`,
+      [ticket.id, event.id, client.id]
+    );
+    await helpers.pool.query(
+      `INSERT INTO gates (event_id, name) VALUES ($1, 'Portão purge')`,
+      [event.id]
+    );
+    await helpers.pool.query(
+      `INSERT INTO terminals (event_id, name) VALUES ($1, 'Terminal purge')`,
+      [event.id]
+    );
+    await helpers.pool.query(
+      `INSERT INTO master_tickets (event_id, created_by) VALUES ($1, $2)`,
+      [event.id, adminId]
+    );
+    await helpers.pool.query(
+      `INSERT INTO audit_logs (tenant_id, event_id, user_id, action)
+       VALUES ($1, $2, $3, 'test_event_data')`,
+      [client.id, event.id, adminId]
+    );
+
+    const res = await api()
+      .delete(`/api/events/${event.id}/purge`)
+      .set(auth(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.event_id).toBe(event.id);
+
+    const eventRow = await helpers.pool.query('SELECT name, status FROM events WHERE id = $1', [event.id]);
+    expect(eventRow.rows[0]).toMatchObject({ name: 'Festival Para Purgar', status: 'purged' });
+
+    for (const table of ['entry_logs', 'tickets', 'batches', 'event_config', 'event_team', 'gates', 'master_tickets', 'terminals']) {
+      const rows = await helpers.pool.query(`SELECT COUNT(*)::int AS count FROM ${table} WHERE event_id = $1`, [event.id]);
+      expect(rows.rows[0].count).toBe(0);
+    }
+    const auditRows = await helpers.pool.query(
+      `SELECT action FROM audit_logs WHERE event_id = $1`,
+      [event.id]
+    );
+    expect(auditRows.rows.map((row) => row.action)).toEqual(['event_data_purged']);
   });
 });

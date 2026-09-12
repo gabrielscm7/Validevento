@@ -30,4 +30,7 @@ router.patch('/:eventId/status', requireRole('admin', 'master'), eventAccess, ev
 // POST /api/events/:eventId/share — envia link do evento por e-mail à equipe (admin/master)
 router.post('/:eventId/share', requireRole('admin', 'master'), eventAccess, eventsController.share);
 
+// DELETE /api/events/:eventId/purge — ação irreversível para evento encerrado
+router.delete('/:eventId/purge', requireRole('admin', 'master'), eventAccess, eventsController.purge);
+
 module.exports = router;
