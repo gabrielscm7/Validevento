@@ -49,8 +49,9 @@ async function getSummary(eventId, tenantId) {
        COUNT(*) FILTER (WHERE origin = 'cortesia')::integer                   AS cortesia,
        COUNT(*) FILTER (WHERE origin = 'liberacao_especial')::integer         AS liberacao_especial
      FROM tickets
-     WHERE event_id = $1
-       AND ($2::uuid IS NULL OR tenant_id = $2)`,
+      WHERE event_id = $1
+        AND status <> 'cancelled'
+        AND ($2::uuid IS NULL OR tenant_id = $2)`,
     [eventId, tenantId || null]
   );
   const row = ticketsRes.rows[0];
@@ -158,8 +159,9 @@ async function getBatches(eventId, tenantId) {
        COUNT(*) FILTER (WHERE status = 'validated')::integer AS validated,
        COUNT(*) FILTER (WHERE status = 'blocked')::integer   AS blocked
      FROM tickets
-     WHERE event_id = $1
-       AND ($2::uuid IS NULL OR tenant_id = $2)
+      WHERE event_id = $1
+        AND status <> 'cancelled'
+        AND ($2::uuid IS NULL OR tenant_id = $2)
      GROUP BY batch
      ORDER BY batch ASC`,
     [eventId, tenantId || null]
@@ -176,6 +178,38 @@ async function getBatches(eventId, tenantId) {
       pct: total > 0 ? round1((validated / total) * 100) : 0,
     };
   });
+}
+
+async function getGates(eventId, tenantId) {
+  const result = await db.query(
+    `WITH gate_counts AS (
+       SELECT l.gate_id, COUNT(*)::integer AS validations
+       FROM entry_logs l
+       WHERE l.event_id = $1
+         AND l.is_duplicate = false
+         AND ($2::uuid IS NULL OR l.tenant_id = $2)
+       GROUP BY l.gate_id
+     )
+     SELECT g.id, g.name, COALESCE(c.validations, 0)::integer AS validations,
+            false AS is_default
+     FROM gates g
+     LEFT JOIN gate_counts c ON c.gate_id = g.id
+     WHERE g.event_id = $1
+     UNION ALL
+     SELECT NULL AS id, 'Portaria Única' AS name,
+            COALESCE((SELECT validations FROM gate_counts WHERE gate_id IS NULL), 0)::integer,
+            true AS is_default
+     WHERE NOT EXISTS (SELECT 1 FROM gates WHERE event_id = $1)
+        OR EXISTS (SELECT 1 FROM gate_counts WHERE gate_id IS NULL)
+     ORDER BY is_default, name`,
+    [eventId, tenantId || null]
+  );
+  return result.rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    validations: Number(row.validations),
+    is_default: row.is_default,
+  }));
 }
 
 // ────────────────────────────────────────────────
@@ -199,14 +233,16 @@ async function getAlerts(eventId, tenantId, { limit = 50 } = {}) {
            ELSE NULL
          END AS type,
          t.ticket_code,
-         COALESCE(t.display_name, l.beneficiary) AS display_name,
-         u.name AS validator_name,
-         term.name AS terminal_name,
-         l.created_at
+          COALESCE(t.display_name, l.beneficiary) AS display_name,
+          u.name AS validator_name,
+          term.name AS terminal_name,
+          COALESCE(g.name, 'Portaria Única') AS gate_name,
+          l.created_at
        FROM entry_logs l
        LEFT JOIN tickets t   ON t.id = l.ticket_id
-       LEFT JOIN users u     ON u.id = l.validator_id
-       LEFT JOIN terminals term ON term.id = l.terminal_id
+        LEFT JOIN users u     ON u.id = l.validator_id
+        LEFT JOIN terminals term ON term.id = l.terminal_id
+        LEFT JOIN gates g ON g.id = l.gate_id
        WHERE l.event_id = $1
          AND ($2::uuid IS NULL OR l.tenant_id = $2)
      ) sub
@@ -269,11 +305,13 @@ async function getLiveFeed(eventId, tenantId, { limit = 20 } = {}) {
        l.is_duplicate,
        u.name AS validator_name,
        term.name AS terminal_name,
+       COALESCE(g.name, 'Portaria Única') AS gate_name,
        l.created_at
      FROM entry_logs l
      LEFT JOIN tickets t   ON t.id = l.ticket_id
      LEFT JOIN users u     ON u.id = l.validator_id
      LEFT JOIN terminals term ON term.id = l.terminal_id
+     LEFT JOIN gates g ON g.id = l.gate_id
      WHERE l.event_id = $1
        AND ($2::uuid IS NULL OR l.tenant_id = $2)
      ORDER BY l.created_at DESC
@@ -350,6 +388,7 @@ module.exports = {
   getSummary,
   getFlow,
   getBatches,
+  getGates,
   getAlerts,
   getTerminals,
   getLiveFeed,

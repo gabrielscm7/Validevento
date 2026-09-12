@@ -11,7 +11,7 @@ ALTER TABLE tickets DROP CONSTRAINT IF EXISTS valid_status;
 UPDATE tickets SET status = 'active' WHERE status IN ('generated', 'linked');
 
 ALTER TABLE tickets ADD CONSTRAINT valid_status CHECK (
-  status IN ('active', 'validated', 'blocked')
+  status IN ('active', 'validated', 'blocked', 'cancelled')
 );
 
 DROP INDEX IF EXISTS idx_tickets_hash_cpf;

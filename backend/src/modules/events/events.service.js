@@ -31,7 +31,7 @@ async function listEvents({ tenantId, isMaster, status, filterTenantId }) {
   const result = await db.query(
     `SELECT e.id, e.name, e.date, e.location, e.capacity, e.status,
             e.expected_start, e.created_at,
-            (SELECT COUNT(*)::int FROM tickets t WHERE t.event_id = e.id)  AS tickets_count,
+             (SELECT COUNT(*)::int FROM tickets t WHERE t.event_id = e.id AND t.status <> 'cancelled')  AS tickets_count,
             (SELECT COUNT(*)::int FROM tickets t
               WHERE t.event_id = e.id AND t.status = 'validated')          AS validated_count
      FROM events e
@@ -114,7 +114,7 @@ async function getEventById(eventId) {
     db.query('SELECT * FROM event_config WHERE event_id = $1', [eventId]),
     db.query(
       `SELECT
-         (SELECT COUNT(*)::int FROM tickets t WHERE t.event_id = $1)                                  AS tickets_count,
+          (SELECT COUNT(*)::int FROM tickets t WHERE t.event_id = $1 AND t.status <> 'cancelled')       AS tickets_count,
          (SELECT COUNT(*)::int FROM tickets t WHERE t.event_id = $1 AND t.status = 'validated')       AS validated_count`,
       [eventId]
     ),

@@ -32,6 +32,13 @@ router.get(
 );
 
 router.get(
+  '/:eventId/dashboard/gates',
+  eventAccess,
+  requireEventRole('supervisor', 'admin', 'master'),
+  dashboardController.getGates
+);
+
+router.get(
   '/:eventId/dashboard/alerts',
   eventAccess,
   requireEventRole('supervisor', 'admin', 'master'),

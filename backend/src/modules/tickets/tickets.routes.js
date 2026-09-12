@@ -11,6 +11,20 @@ router.use(authMiddleware);
 // GET /api/events/:eventId/tickets — paginação + filtros
 router.get('/:eventId/tickets', eventAccess, ticketsController.list);
 
+router.post(
+  '/:eventId/invitations/cancel',
+  requireRole('admin', 'master'),
+  eventAccess,
+  ticketsController.cancelInvitations
+);
+
+router.post(
+  '/:eventId/validations/reset',
+  requireRole('admin', 'master'),
+  eventAccess,
+  ticketsController.resetValidations
+);
+
 // PATCH /api/events/:eventId/tickets/:ticketId/block — admin/master
 router.patch(
   '/:eventId/tickets/:ticketId/block',

@@ -113,4 +113,73 @@ async function closeGate({ eventId, gateId, closedBy }) {
   };
 }
 
-module.exports = { listGates, createGate, openGate, closeGate };
+async function getTerminalGate({ eventId, terminalId }) {
+  if (!isValidUUIDv4(terminalId)) {
+    throw apiError(404, 'terminal_not_found', 'Terminal não encontrado.');
+  }
+
+  const result = await db.query(
+    `SELECT t.id AS terminal_id, t.gate_id, g.name AS gate_name,
+            g.opened_at, g.closed_at
+     FROM terminals t
+     LEFT JOIN gates g ON g.id = t.gate_id
+     WHERE t.id = $1 AND t.event_id = $2`,
+    [terminalId, eventId]
+  );
+  if (result.rowCount === 0) {
+    throw apiError(404, 'terminal_not_found', 'Terminal não encontrado.');
+  }
+  const row = result.rows[0];
+  return {
+    terminal_id: row.terminal_id,
+    gate_id: row.gate_id,
+    gate_name: row.gate_name || null,
+    gate_open: !!(row.opened_at && !row.closed_at),
+  };
+}
+
+async function setTerminalGate({ eventId, terminalId, gateId }) {
+  if (!isValidUUIDv4(terminalId)) {
+    throw apiError(404, 'terminal_not_found', 'Terminal não encontrado.');
+  }
+  if (gateId !== null && gateId !== undefined && !isValidUUIDv4(gateId)) {
+    throw apiError(404, 'gate_not_found', 'Portão não encontrado.');
+  }
+
+  const terminal = await db.query(
+    'SELECT id FROM terminals WHERE id = $1 AND event_id = $2',
+    [terminalId, eventId]
+  );
+  if (terminal.rowCount === 0) {
+    throw apiError(404, 'terminal_not_found', 'Terminal não encontrado.');
+  }
+
+  if (gateId) {
+    const gate = await db.query(
+      `SELECT id, opened_at, closed_at FROM gates
+       WHERE id = $1 AND event_id = $2`,
+      [gateId, eventId]
+    );
+    if (gate.rowCount === 0) {
+      throw apiError(404, 'gate_not_found', 'Portão não encontrado.');
+    }
+    if (!gate.rows[0].opened_at || gate.rows[0].closed_at) {
+      throw apiError(422, 'gate_not_open', 'Escolha um portão aberto.');
+    }
+  }
+
+  await db.query(
+    'UPDATE terminals SET gate_id = $1 WHERE id = $2 AND event_id = $3',
+    [gateId || null, terminalId, eventId]
+  );
+  return getTerminalGate({ eventId, terminalId });
+}
+
+module.exports = {
+  listGates,
+  createGate,
+  openGate,
+  closeGate,
+  getTerminalGate,
+  setTerminalGate,
+};

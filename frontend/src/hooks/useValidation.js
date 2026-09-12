@@ -39,6 +39,7 @@ function baseTicket(ticket) {
 export function useValidation() {
   const eventId = useTerminalStore((s) => s.eventId)
   const terminalId = useTerminalStore((s) => s.terminalId)
+  const gateId = useTerminalStore((s) => s.gateId)
   const user = useAuthStore((s) => s.user)
 
   const nowIso = () => new Date().toISOString()
@@ -79,6 +80,10 @@ export function useValidation() {
       return { status: RESULT.BLOCKED, ticket_code: code }
     }
 
+    if (ticket.status === 'cancelled') {
+      return { status: 'cancelled', ticket_code: code }
+    }
+
     if (ticket.status === 'active') {
       await db.tickets.update(ticket.id, {
         status: 'validated', validated_at: now, updated_at: now,
@@ -89,6 +94,7 @@ export function useValidation() {
         event_id: eventId,
         entry_type: entryType,
         terminal_id: terminalId,
+        gate_id: gateId,
         validator_id: user?.id,
         is_duplicate: false,
         synced: 0,
@@ -112,6 +118,7 @@ export function useValidation() {
         event_id: eventId,
         entry_type: entryType,
         terminal_id: terminalId,
+        gate_id: gateId,
         validator_id: user?.id,
         is_duplicate: false,
         synced: 0,
@@ -133,6 +140,7 @@ export function useValidation() {
       event_id: eventId,
       entry_type: entryType,
       terminal_id: terminalId,
+      gate_id: gateId,
       validator_id: user?.id,
       is_duplicate: false,
       synced: 0,
@@ -140,7 +148,7 @@ export function useValidation() {
     })
     confirmOnServer(code)
     return { status: RESULT.AUTHORIZED, reentry: true, ticket_code: code, display_name: ticket.display_name, batch: ticket.batch }
-  }, [eventId, terminalId, user, confirmOnServer])
+  }, [eventId, terminalId, gateId, user, confirmOnServer])
 
   /** Persiste (ou atualiza) um ticket vindo do servidor quando não estava local. */
   const upsertRemoteTicket = useCallback(async (result, found) => {

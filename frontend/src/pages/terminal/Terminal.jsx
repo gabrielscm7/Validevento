@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useTerminalStore } from '../../store/terminalStore'
 import { useValidation } from '../../hooks/useValidation'
 import { syncWithServer } from '../../services/syncService'
-import { getMeta } from '../../services/localDB'
+import { getMeta, saveMeta } from '../../services/localDB'
 import api from '../../services/api'
 import { QRScanner } from '../../components/QRScanner'
 import { SearchPanel } from '../../components/SearchPanel'
@@ -28,7 +28,9 @@ export default function Terminal() {
   const navigate = useNavigate()
 
   const { user, logout } = useAuthStore()
-  const { initTerminal, setLastResult } = useTerminalStore()
+  const { initTerminal, setLastResult, setGate } = useTerminalStore()
+  const gateId = useTerminalStore((s) => s.gateId)
+  const gateName = useTerminalStore((s) => s.gateName)
   const { validateTicket, checkoutTicket, validateManual } = useValidation()
 
   const [eventName, setEventName] = useState('Evento')
@@ -40,14 +42,25 @@ export default function Terminal() {
   const [showMaster, setShowMaster] = useState(false)
   const [result, setResult] = useState(null)
   const [syncing, setSyncing] = useState(false)
+  const [gates, setGates] = useState([])
+  const [showGatePicker, setShowGatePicker] = useState(false)
   const lockRef = useRef(false)
 
   const refreshFromLocal = useCallback(async () => {
     const cfg = (await getMeta('event_config')) || DEFAULT_CONFIG
     setConfig(cfg)
     setMasterTicket(await getMeta('master_ticket'))
+    const savedGate = await getMeta('terminal_gate')
+    if (savedGate) {
+      await setGate({
+        gateId: savedGate.gate_id && savedGate.gate_open !== false ? savedGate.gate_id : null,
+        gateName: savedGate.gate_id && savedGate.gate_open !== false ? savedGate.gate_name : null,
+      })
+    }
+    const cachedGates = await getMeta('event_gates')
+    if (Array.isArray(cachedGates)) setGates(cachedGates)
     if (cfg.checkout_enabled === false) setMode('checkin')
-  }, [])
+  }, [setGate])
 
   const runSync = useCallback(async () => {
     setSyncing(true)
@@ -64,7 +77,24 @@ export default function Terminal() {
     }
     let mounted = true
     setLastEventId(eventId)
-    initTerminal(eventId)
+    initTerminal(eventId).then(async (terminalId) => {
+      try {
+        const [{ data: gateRows }, { data: current }] = await Promise.all([
+          api.get(`/api/events/${eventId}/gates`),
+          api.get(`/api/events/${eventId}/terminals/${terminalId}/gate`),
+        ])
+        setGates(gateRows || [])
+        await saveMeta('event_gates', gateRows || [])
+        if (current?.gate_id && current.gate_open) {
+          await setGate({ gateId: current.gate_id, gateName: current.gate_name })
+        } else {
+          await setGate({ gateId: null, gateName: null })
+        }
+      } catch {
+        const cachedGates = await getMeta('event_gates')
+        if (Array.isArray(cachedGates)) setGates(cachedGates)
+      }
+    })
 
     api.get(`/api/events/${eventId}`)
       .then(({ data }) => { if (mounted && data?.name) setEventName(data.name) })
@@ -73,7 +103,18 @@ export default function Terminal() {
     refreshFromLocal()
     if (typeof navigator !== 'undefined' && navigator.onLine) runSync()
     return () => { mounted = false }
-  }, [eventId, initTerminal, refreshFromLocal, runSync])
+  }, [eventId, initTerminal, refreshFromLocal, runSync, setGate])
+
+  async function chooseGate(gate) {
+    const terminalId = useTerminalStore.getState().terminalId
+    try {
+      await api.patch(`/api/events/${eventId}/terminals/${terminalId}/gate`, { gate_id: gate.id })
+      await setGate({ gateId: gate.id, gateName: gate.name })
+      setShowGatePicker(false)
+    } catch (error) {
+      setResult({ status: 'error', reason: error?.response?.data?.details || 'Não foi possível selecionar o portão.' })
+    }
+  }
 
   // Fullscreen mobile-first
   useEffect(() => {
@@ -156,6 +197,9 @@ export default function Terminal() {
       <div className="terminal-context">
         {eventName} · Terminal de Portaria
         {modeLabel ? ` · modo ${modeLabel}` : ''}
+        <button type="button" className="t-btn" onClick={() => setShowGatePicker(true)}>
+          {gateName || (gates.length ? 'Selecionar portão' : 'Portaria Única')}
+        </button>
       </div>
 
       {/* 3. Scanner */}
@@ -163,10 +207,19 @@ export default function Terminal() {
         {result ? (
           <ValidationResult result={result} onDismiss={handleDismiss} />
         ) : (
-          <>
-            <QRScanner onScan={handleScan} active={scanReady} />
-            {syncing && <p className="scan-hint">sincronizando com o servidor…</p>}
-          </>
+          gates.length > 0 && !gateId ? (
+            <div className="terminal-empty">
+              <p>Selecione o portão antes de iniciar as validações.</p>
+              <button type="button" className="btn btn-primary" onClick={() => setShowGatePicker(true)}>
+                Escolher portão
+              </button>
+            </div>
+          ) : (
+            <>
+              <QRScanner onScan={handleScan} active={scanReady} />
+              {syncing && <p className="scan-hint">sincronizando com o servidor…</p>}
+            </>
+          )
         )}
       </main>
 
@@ -200,6 +253,15 @@ export default function Terminal() {
         >
           ⏻
         </button>
+        {user?.role === 'admin' && (
+          <button
+            type="button"
+            className="t-btn"
+            onClick={() => navigate(`/supervisor/${eventId}`)}
+          >
+            Dashboard
+          </button>
+        )}
       </footer>
 
       {/* Drawer busca manual */}
@@ -213,6 +275,24 @@ export default function Terminal() {
         maxUses={masterTicket?.max_uses}
         onResult={(r) => { setLastResult(r); setResult(r) }}
       />
+
+      {showGatePicker && (
+        <div className="terminal-overlay" role="dialog" aria-modal="true" aria-label="Selecionar portão">
+          <div className="terminal-dialog">
+            <h2>Selecione o portão</h2>
+            <div className="grid gap-sm mt-3">
+              {gates.filter((gate) => gate.status === 'open').map((gate) => (
+                <button key={gate.id} type="button" className="btn btn-primary" onClick={() => chooseGate(gate)}>
+                  {gate.name}
+                </button>
+              ))}
+            </div>
+            <button type="button" className="btn btn-ghost mt-3" onClick={() => setShowGatePicker(false)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

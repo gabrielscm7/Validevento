@@ -29,6 +29,26 @@ async function ensureTerminal(client, eventId, terminalId) {
   return terminalId;
 }
 
+async function resolveGate(client, eventId, terminalId) {
+  if (!terminalId) return null;
+  const result = await client.query(
+    `SELECT t.gate_id, g.opened_at, g.closed_at
+     FROM terminals t
+     LEFT JOIN gates g ON g.id = t.gate_id
+     WHERE t.id = $1 AND t.event_id = $2`,
+    [terminalId, eventId]
+  );
+  const row = result.rows[0];
+  if (!row?.gate_id) return null;
+  if (!row.opened_at || row.closed_at) {
+    const error = new Error('O portão selecionado está fechado. Escolha outro portão.');
+    error.status = 422;
+    error.code = 'gate_not_open';
+    throw error;
+  }
+  return row.gate_id;
+}
+
 /** Lê a config do evento; se ausente, usa defaults (compatível com v1). */
 async function getEventConfig(client, eventId) {
   const result = await client.query(
@@ -105,7 +125,13 @@ async function validateQRCode(eventId, terminalId, validatorId, ticketCode, tena
       return { status: 'blocked', ticket_code: ticket.ticket_code };
     }
 
+    if (ticket.status === 'cancelled') {
+      await client.query('COMMIT');
+      return { status: 'cancelled', ticket_code: ticket.ticket_code };
+    }
+
     const safeTerminalId = await ensureTerminal(client, eventId, terminalId);
+    const gateId = await resolveGate(client, eventId, safeTerminalId);
     const now = new Date();
 
     // ── Ingresso ativo → primeira entrada (autorizada) ──
@@ -118,10 +144,10 @@ async function validateQRCode(eventId, terminalId, validatorId, ticketCode, tena
       );
 
       const logRes = await client.query(
-        `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, is_duplicate, synced, created_at)
-         VALUES ($1, $2, $3, 'qrcode', $4, $5, false, true, $6)
+        `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, gate_id, is_duplicate, synced, created_at)
+         VALUES ($1, $2, $3, 'qrcode', $4, $5, $6, false, true, $7)
          RETURNING id`,
-        [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null, now]
+        [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null, gateId, now]
       );
 
       await client.query('COMMIT');
@@ -145,10 +171,10 @@ async function validateQRCode(eventId, terminalId, validatorId, ticketCode, tena
 
       if (mode === 'free') {
         const logRes = await client.query(
-          `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, is_duplicate, synced, created_at)
-           VALUES ($1, $2, $3, 'qrcode', $4, $5, false, true, $6)
+          `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, gate_id, is_duplicate, synced, created_at)
+           VALUES ($1, $2, $3, 'qrcode', $4, $5, $6, false, true, $7)
            RETURNING id`,
-          [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null, now]
+          [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null, gateId, now]
         );
         await client.query('COMMIT');
         return {
@@ -173,10 +199,10 @@ async function validateQRCode(eventId, terminalId, validatorId, ticketCode, tena
         [ticket.id]
       );
       const logRes = await client.query(
-        `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, is_duplicate, synced, created_at)
-         VALUES ($1, $2, $3, 'qrcode', $4, $5, false, true, $6)
+        `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, gate_id, is_duplicate, synced, created_at)
+         VALUES ($1, $2, $3, 'qrcode', $4, $5, $6, false, true, $7)
          RETURNING id`,
-        [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null, now]
+        [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null, gateId, now]
       );
       await client.query('COMMIT');
       return {
@@ -230,11 +256,17 @@ async function validateManual(eventId, terminalId, validatorId, ticketId, tenant
 
     const ticket = ticketRes.rows[0];
     const safeTerminalId = await ensureTerminal(client, eventId, terminalId);
+    const gateId = await resolveGate(client, eventId, safeTerminalId);
     const now = new Date();
 
     if (ticket.status === 'blocked') {
       await client.query('COMMIT');
       return { status: 'blocked', ticket_code: ticket.ticket_code };
+    }
+
+    if (ticket.status === 'cancelled') {
+      await client.query('COMMIT');
+      return { status: 'cancelled', ticket_code: ticket.ticket_code };
     }
 
     if (ticket.status === 'active') {
@@ -246,10 +278,10 @@ async function validateManual(eventId, terminalId, validatorId, ticketId, tenant
       );
 
       const logRes = await client.query(
-        `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, is_duplicate, synced, created_at)
-         VALUES ($1, $2, $3, 'manual', $4, $5, false, true, $6)
+        `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, gate_id, is_duplicate, synced, created_at)
+         VALUES ($1, $2, $3, 'manual', $4, $5, $6, false, true, $7)
          RETURNING id`,
-        [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null, now]
+        [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null, gateId, now]
       );
 
       await client.query('COMMIT');
@@ -272,10 +304,10 @@ async function validateManual(eventId, terminalId, validatorId, ticketId, tenant
 
       if (mode === 'free') {
         const logRes = await client.query(
-          `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, is_duplicate, synced, created_at)
-           VALUES ($1, $2, $3, 'manual', $4, $5, false, true, $6)
+          `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, gate_id, is_duplicate, synced, created_at)
+           VALUES ($1, $2, $3, 'manual', $4, $5, $6, false, true, $7)
            RETURNING id`,
-          [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null, now]
+          [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null, gateId, now]
         );
         await client.query('COMMIT');
         return {
@@ -298,10 +330,10 @@ async function validateManual(eventId, terminalId, validatorId, ticketId, tenant
         [ticket.id]
       );
       const logRes = await client.query(
-        `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, is_duplicate, synced, created_at)
-         VALUES ($1, $2, $3, 'manual', $4, $5, false, true, $6)
+        `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type, terminal_id, validator_id, gate_id, is_duplicate, synced, created_at)
+         VALUES ($1, $2, $3, 'manual', $4, $5, $6, false, true, $7)
          RETURNING id`,
-        [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null, now]
+        [ticket.id, eventId, ticket.tenant_id, safeTerminalId, validatorId || null, gateId, now]
       );
       await client.query('COMMIT');
       return {

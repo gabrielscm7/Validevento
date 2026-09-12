@@ -1,6 +1,6 @@
 const helpers = require('./helpers');
 const {
-  api, resetDb, createClient, createUser, loginToken, auth,
+  api, resetDb, createClient, createUser, loginToken, auth, pool,
 } = helpers;
 
 describe('Gestão de portões (Fase 2)', () => {
@@ -87,5 +87,72 @@ describe('Gestão de portões (Fase 2)', () => {
       .set(auth(adminToken));
     expect(segundo.status).toBe(422);
     expect(segundo.body.error).toBe('gate_already_open');
+  });
+
+  test('T-gates-3: terminal pode alocar e consultar o portão aberto', async () => {
+    const terminalId = require('crypto').randomUUID();
+    const create = await api()
+      .post(`/api/events/${eventId}/gates`)
+      .set(auth(adminToken))
+      .send({ name: 'Portão Alocado' });
+    const gateId = create.body.id;
+
+    await api()
+      .patch(`/api/events/${eventId}/gates/${gateId}/open`)
+      .set(auth(adminToken));
+
+    const heartbeat = await api()
+      .post('/api/sync/heartbeat')
+      .set(auth(adminToken))
+      .send({ event_id: eventId, terminal_id: terminalId, name: 'Terminal Teste' });
+    expect(heartbeat.status).toBe(200);
+
+    const assign = await api()
+      .patch(`/api/events/${eventId}/terminals/${terminalId}/gate`)
+      .set(auth(adminToken))
+      .send({ gate_id: gateId });
+    expect(assign.status).toBe(200);
+    expect(assign.body.gate_id).toBe(gateId);
+
+    const current = await api()
+      .get(`/api/events/${eventId}/terminals/${terminalId}/gate`)
+      .set(auth(adminToken));
+    expect(current.status).toBe(200);
+    expect(current.body.gate_id).toBe(gateId);
+  });
+
+  test('T-gates-4: validação registra o portão associado ao terminal', async () => {
+    const crypto = require('crypto');
+    const terminalId = crypto.randomUUID();
+    const ticketCode = crypto.randomUUID();
+    const gate = await api()
+      .post(`/api/events/${eventId}/gates`)
+      .set(auth(adminToken))
+      .send({ name: 'Portão do Log' });
+    const gateId = gate.body.id;
+    await api().patch(`/api/events/${eventId}/gates/${gateId}/open`).set(auth(adminToken));
+    await api().post('/api/sync/heartbeat').set(auth(adminToken)).send({
+      event_id: eventId, terminal_id: terminalId, name: 'Terminal do Log',
+    });
+    await api().patch(`/api/events/${eventId}/terminals/${terminalId}/gate`)
+      .set(auth(adminToken)).send({ gate_id: gateId });
+    await pool.query(
+      `INSERT INTO tickets (event_id, tenant_id, ticket_code, batch, display_name, status)
+       SELECT $1, tenant_id, $2, 'TESTE', 'Ticket Portão', 'active' FROM events WHERE id = $1`,
+      [eventId, ticketCode]
+    );
+
+    const validation = await api()
+      .post('/api/validation/qrcode')
+      .set(auth(adminToken))
+      .send({ event_id: eventId, ticket_code: ticketCode, terminal_id: terminalId });
+    expect(validation.status).toBe(200);
+    expect(validation.body.status).toBe('authorized');
+
+    const log = await pool.query(
+      'SELECT gate_id FROM entry_logs WHERE event_id = $1 AND ticket_id = (SELECT id FROM tickets WHERE ticket_code = $2)',
+      [eventId, ticketCode]
+    );
+    expect(log.rows[0].gate_id).toBe(gateId);
   });
 });

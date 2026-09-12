@@ -122,6 +122,32 @@ async function getMasterTicket(eventId) {
   };
 }
 
+async function getEventGates(eventId, terminalId) {
+  const gatesRes = await db.query(
+    `SELECT id, name, opened_at, closed_at
+     FROM gates WHERE event_id = $1 ORDER BY created_at ASC`,
+    [eventId]
+  );
+  let terminalGate = null;
+  if (terminalId && UUID_RE.test(terminalId)) {
+    const terminalRes = await db.query(
+      `SELECT t.gate_id, g.name AS gate_name,
+              (g.opened_at IS NOT NULL AND g.closed_at IS NULL) AS gate_open
+       FROM terminals t LEFT JOIN gates g ON g.id = t.gate_id
+       WHERE t.id = $1 AND t.event_id = $2`,
+      [terminalId, eventId]
+    );
+    terminalGate = terminalRes.rows[0] || null;
+  }
+  return {
+    gates: gatesRes.rows.map((gate) => ({
+      ...gate,
+      status: gate.opened_at && !gate.closed_at ? 'open' : 'closed',
+    })),
+    terminal_gate: terminalGate,
+  };
+}
+
 /**
  * Snapshot incremental de ingressos do evento.
  * - Sem `since`: retorna todos os tickets do evento.
@@ -160,15 +186,18 @@ async function getSnapshot(eventId, since, tenantId, terminalId) {
     } catch { /* heartbeat nunca derruba o snapshot */ }
   }
 
-  const [eventConfig, masterTicket] = await Promise.all([
+  const [eventConfig, masterTicket, gateData] = await Promise.all([
     getEventConfig(eventId),
     getMasterTicket(eventId),
+    getEventGates(eventId, terminalId),
   ]);
 
   return {
     tickets: ticketsRes.rows,
     event_config: eventConfig,
     master_ticket: masterTicket,
+    gates: gateData.gates,
+    terminal_gate: gateData.terminal_gate,
     last_sync_at: new Date(),
     total: ticketsRes.rowCount,
   };
@@ -221,6 +250,22 @@ async function findDuplicateLog(client, eventId, ticketId, entryType, createdAt,
   return res.rows[0] || null;
 }
 
+async function resolveOfflineGate(client, eventId, gateId, createdAt) {
+  if (!gateId || !UUID_RE.test(gateId)) return null;
+  const result = await client.query(
+    `SELECT id, opened_at, closed_at FROM gates
+     WHERE id = $1 AND event_id = $2`,
+    [gateId, eventId]
+  );
+  if (result.rowCount === 0) throw new Error('Portão não encontrado neste evento.');
+  const gate = result.rows[0];
+  if (!gate.opened_at || new Date(gate.opened_at) > createdAt ||
+      (gate.closed_at && new Date(gate.closed_at) < createdAt)) {
+    throw new Error('O portão não estava aberto no momento da validação.');
+  }
+  return gate.id;
+}
+
 async function processCheckoutLog(client, eventId, ticket, log, tenantId) {
   const checkoutAt = isValidDate(log.checkout_at) ? new Date(log.checkout_at) : new Date();
 
@@ -244,7 +289,7 @@ async function processCheckoutLog(client, eventId, ticket, log, tenantId) {
   );
 }
 
-async function processRegularLog(client, eventId, log, ticket, createdAt, tenantId) {
+async function processRegularLog(client, eventId, log, ticket, createdAt, tenantId, validatorId, terminalId) {
   const entryType = log.entry_type || 'qrcode';
 
   // Idempotência (±5s) — evita duplicatas de reenvio/rede
@@ -269,19 +314,22 @@ async function processRegularLog(client, eventId, log, ticket, createdAt, tenant
     );
   }
 
+  const gateId = await resolveOfflineGate(client, eventId, log.gate_id, createdAt);
+
   await client.query(
     `INSERT INTO entry_logs
        (ticket_id, event_id, tenant_id, entry_type, beneficiary,
-        terminal_id, validator_id, is_duplicate, synced, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)`,
+        terminal_id, validator_id, gate_id, is_duplicate, synced, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10)`,
     [
       ticket.id,
       eventId,
       tenantId || ticket.tenant_id,
       entryType,
       log.beneficiary || null,
-      log.terminal_id || null,
-      log.validator_id || null,
+      log.terminal_id || terminalId || null,
+      log.validator_id || validatorId || null,
+      gateId,
       log.is_duplicate === true,
       createdAt,
     ]
@@ -290,7 +338,7 @@ async function processRegularLog(client, eventId, log, ticket, createdAt, tenant
   return { ignored: false };
 }
 
-async function processMasterLog(client, eventId, log, createdAt, tenantId, terminalId) {
+async function processMasterLog(client, eventId, log, createdAt, tenantId, terminalId, validatorId) {
   const mtRes = await client.query(
     `SELECT id, uses_count, max_uses, active
      FROM master_tickets
@@ -324,6 +372,8 @@ async function processMasterLog(client, eventId, log, createdAt, tenantId, termi
     return { ignored: true };
   }
 
+  const gateId = await resolveOfflineGate(client, eventId, log.gate_id, createdAt);
+
   await client.query(
     'UPDATE master_tickets SET uses_count = uses_count + 1 WHERE id = $1',
     [mt.id]
@@ -332,14 +382,15 @@ async function processMasterLog(client, eventId, log, createdAt, tenantId, termi
   await client.query(
     `INSERT INTO entry_logs
        (ticket_id, event_id, tenant_id, entry_type, beneficiary,
-        terminal_id, validator_id, is_duplicate, synced, created_at)
-     VALUES (NULL, $1, $2, 'master', $3, $4, $5, false, true, $6)`,
+        terminal_id, validator_id, gate_id, is_duplicate, synced, created_at)
+     VALUES (NULL, $1, $2, 'master', $3, $4, $5, $6, false, true, $7)`,
     [
       eventId,
       tenantId,
       log.beneficiary || null,
       terminalId || log.terminal_id || null,
-      log.validator_id || null,
+      log.validator_id || validatorId || null,
+      gateId,
       createdAt,
     ]
   );
@@ -387,7 +438,7 @@ async function processOfflineLogs(eventId, terminalId, validatorId, logs, tenant
       // Caso master não possui ticket vinculado
       if ((log.entry_type || '') === 'master') {
         const outcome = await processMasterLog(
-          client, eventId, log, createdAt, tenantId, terminalId
+          client, eventId, log, createdAt, tenantId, terminalId, validatorId
         );
         if (outcome.ignored) ignored += 1;
         else processed += 1;
@@ -412,7 +463,9 @@ async function processOfflineLogs(eventId, terminalId, validatorId, logs, tenant
         throw new Error(`Ticket ${log.ticket_code || log.ticket_id} não encontrado neste evento.`);
       }
 
-      const outcome = await processRegularLog(client, eventId, log, ticket, createdAt, tenantId);
+        const outcome = await processRegularLog(
+          client, eventId, log, ticket, createdAt, tenantId, validatorId, terminalId
+        );
       if (outcome.ignored) ignored += 1;
       else processed += 1;
 

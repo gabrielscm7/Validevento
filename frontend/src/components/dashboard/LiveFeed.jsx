@@ -32,8 +32,9 @@ export function LiveFeed({ data, loading }) {
                 <p className="font-medium text-sm truncate" style={{ color: 'var(--text-strong)' }}>{l.display_name}</p>
                 <p className="text-xs text-muted truncate">
                   {l.batch || ''}
-                  {l.validator_name ? ` · ${l.validator_name}` : ''}
-                  {l.terminal_name ? ` · ${l.terminal_name}` : ''}
+                   {l.validator_name ? ` · ${l.validator_name}` : ''}
+                   {l.terminal_name ? ` · ${l.terminal_name}` : ''}
+                   {l.gate_name ? ` · ${l.gate_name}` : ''}
                 </p>
               </div>
               <div className="text-right flex-shrink-0">

@@ -70,4 +70,51 @@ async function unblock(req, res) {
   }
 }
 
-module.exports = { list, block, unblock };
+async function cancelInvitations(req, res) {
+  try {
+    const result = await ticketsService.cancelInvitations({
+      eventId: req.event.id,
+      tenantId: req.event.tenant_id,
+      ticketIds: req.body.ticket_ids,
+      batch: req.body.batch,
+      allGenerated: req.body.all_generated === true,
+    });
+    req.params.eventId = req.event.id;
+    await auditLog(req, 'invitations_cancelled', 'event', req.event.id, {
+      count: result.cancelled,
+      ticket_ids: result.ticket_ids,
+      batch: req.body.batch || null,
+      all_generated: req.body.all_generated === true,
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+async function resetValidations(req, res) {
+  try {
+    if (req.event.status === 'closed') {
+      return res.status(422).json({ error: 'event_closed', details: 'Evento encerrado é imutável.' });
+    }
+    const result = await ticketsService.resetValidations({
+      eventId: req.event.id,
+      tenantId: req.event.tenant_id,
+      ticketIds: req.body.ticket_ids,
+      batch: req.body.batch,
+      all: req.body.all === true,
+    });
+    req.params.eventId = req.event.id;
+    await auditLog(req, 'validations_reset', 'event', req.event.id, {
+      count: result.reset,
+      ticket_ids: result.ticket_ids,
+      batch: req.body.batch || null,
+      all: req.body.all === true,
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+module.exports = { list, block, unblock, cancelInvitations, resetValidations };

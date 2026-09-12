@@ -24,6 +24,9 @@ function toServerLog(l) {
     ticket_code: l.ticket_code,
     entry_type: l.entry_type,
     beneficiary: l.beneficiary,
+    terminal_id: l.terminal_id,
+    gate_id: l.gate_id,
+    validator_id: l.validator_id,
     is_duplicate: l.is_duplicate === true,
     checkout_at: l.checkout_at || undefined,
     created_at: l.created_at,
@@ -95,6 +98,8 @@ export async function syncWithServer() {
     // 4. Config + master ticket no meta
     if (snapshot.event_config) await saveMeta('event_config', snapshot.event_config)
     await saveMeta('master_ticket', snapshot.master_ticket || null)
+    if (Array.isArray(snapshot.gates)) await saveMeta('event_gates', snapshot.gates)
+    if (snapshot.terminal_gate) await saveMeta('terminal_gate', snapshot.terminal_gate)
 
     // 5. Mesclar tickets
     for (const ticket of snapshot.tickets || []) {
@@ -104,7 +109,7 @@ export async function syncWithServer() {
         continue
       }
       // Proteção contra race condition: validação local vence
-      if (local.status === 'validated') continue
+      if (local.status === 'validated' && !['active', 'cancelled'].includes(ticket.status)) continue
       // RN-04 client-side: versão local mais nova (ex.: bloqueio) não é sobrescrita
       const localUpdated = local.updated_at ? new Date(local.updated_at).getTime() : 0
       const serverUpdated = ticket.updated_at ? new Date(ticket.updated_at).getTime() : 0

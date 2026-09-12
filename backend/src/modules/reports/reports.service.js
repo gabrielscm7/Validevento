@@ -190,9 +190,10 @@ async function buildMarkdown(eventId, tenantId) {
   const event = await getEvent(eventId);
   if (!event) return null;
 
-  const [summary, batches, alerts, speed, gates, flow, audit] = await Promise.all([
+  const [summary, batches, gateStats, alerts, speed, gates, flow, audit] = await Promise.all([
     dashboardService.getSummary(eventId, tenantId),
     dashboardService.getBatches(eventId, tenantId),
+    dashboardService.getGates(eventId, tenantId),
     dashboardService.getAlerts(eventId, tenantId, { limit: 100 }),
     dashboardService.getSpeed(eventId, tenantId),
     gatesService.listGates(eventId),
@@ -245,6 +246,17 @@ async function buildMarkdown(eventId, tenantId) {
   }
   lines.push('');
 
+  // ── Validações por Portão ──
+  lines.push('## Validações por Portão');
+  lines.push('');
+  lines.push(mdTable(
+    ['Portão', 'Validações'],
+    gateStats.length > 0
+      ? gateStats.map((g) => [g.name || 'Portaria Única', fmtInt(g.validations)])
+      : [[ 'Portaria Única', '0' ]]
+  ));
+  lines.push('');
+
   // ── Fluxo de Entrada por Hora ──
   lines.push('## Fluxo de Entrada por Hora');
   lines.push('');
@@ -294,13 +306,14 @@ async function buildMarkdown(eventId, tenantId) {
     lines.push(DASH);
   } else {
     lines.push(mdTable(
-      ['Tipo', 'Nome', 'Horário', 'Terminal', 'Validador'],
+       ['Tipo', 'Nome', 'Horário', 'Terminal', 'Portão', 'Validador'],
       alerts.map((a) => [
         ALERT_TYPE_LABEL[a.type] || a.type || DASH,
         a.display_name || a.ticket_code || DASH,
-        tsBR(a.created_at),
-        a.terminal_name || DASH,
-        a.validator_name || DASH,
+         tsBR(a.created_at),
+         a.terminal_name || DASH,
+         a.gate_name || 'Portaria Única',
+         a.validator_name || DASH,
       ])
     ));
   }
@@ -347,14 +360,16 @@ async function buildCsv(eventId, tenantId) {
        t.status,
        l.entry_type,
        l.is_duplicate,
-       u.name AS validator_name,
-       term.name AS terminal_name,
-       l.created_at AS entry_at,
+        u.name AS validator_name,
+        term.name AS terminal_name,
+        COALESCE(g.name, 'Portaria Única') AS gate_name,
+        l.created_at AS entry_at,
        l.checkout_at
      FROM entry_logs l
      LEFT JOIN tickets t   ON t.id = l.ticket_id
-     LEFT JOIN users u     ON u.id = l.validator_id
-     LEFT JOIN terminals term ON term.id = l.terminal_id
+      LEFT JOIN users u     ON u.id = l.validator_id
+      LEFT JOIN terminals term ON term.id = l.terminal_id
+      LEFT JOIN gates g ON g.id = l.gate_id
      WHERE l.event_id = $1
        AND ($2::uuid IS NULL OR l.tenant_id = $2)
      ORDER BY l.created_at ASC`,
@@ -363,7 +378,7 @@ async function buildCsv(eventId, tenantId) {
 
   const header = [
     'ticket_code', 'display_name', 'batch', 'origin', 'status',
-    'entry_type', 'is_duplicate', 'validator_name', 'terminal_name',
+    'entry_type', 'is_duplicate', 'validator_name', 'terminal_name', 'gate_name',
     'entry_at', 'checkout_at',
   ];
 
@@ -375,9 +390,10 @@ async function buildCsv(eventId, tenantId) {
     r.status || '',
     r.entry_type || '',
     r.is_duplicate ? 'true' : 'false',
-    r.validator_name || '',
-    r.terminal_name || '',
-    r.entry_at ? new Date(r.entry_at).toISOString() : '',
+     r.validator_name || '',
+     r.terminal_name || '',
+     r.gate_name || 'Portaria Única',
+     r.entry_at ? new Date(r.entry_at).toISOString() : '',
     r.checkout_at ? new Date(r.checkout_at).toISOString() : '',
   ]);
 
