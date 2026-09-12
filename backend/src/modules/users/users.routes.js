@@ -11,6 +11,7 @@ router.use(authMiddleware, requireRole('admin', 'master'));
 router.get('/',             usersController.list);
 router.post('/',            usersController.create);
 router.put('/:id',          usersController.update);
+router.patch('/:id/profile', usersController.updateProfile);
 router.patch('/:id/deactivate', usersController.deactivate);
 
 module.exports = router;

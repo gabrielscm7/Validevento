@@ -54,6 +54,23 @@ async function update(req, res) {
   }
 }
 
+async function updateProfile(req, res) {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user.role === 'master' ? null : req.tenantId;
+    const result = await usersService.updateProfile(id, tenantId, req.body);
+    if (!result) return res.status(404).json({ error: 'Usuário não encontrado.' });
+
+    await auditLog(req, 'user.profile_update', 'user', id, {
+      fields: result.changedFields,
+    });
+    return res.status(200).json(result.user);
+  } catch (error) {
+    const status = error.status || 500;
+    return res.status(status).json({ error: error.code || error.message });
+  }
+}
+
 async function deactivate(req, res) {
   try {
     const { id } = req.params;
@@ -66,4 +83,4 @@ async function deactivate(req, res) {
   }
 }
 
-module.exports = { list, create, update, deactivate };
+module.exports = { list, create, update, updateProfile, deactivate };
