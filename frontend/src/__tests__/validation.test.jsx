@@ -1,14 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { render, screen, waitFor, act, renderHook } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { ValidationResult } from '../components/ValidationResult'
 import { SearchPanel } from '../components/SearchPanel'
 import { useTerminalStore } from '../store/terminalStore'
+import { useAuthStore } from '../store/authStore'
+import { useValidation } from '../hooks/useValidation'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
+const dbMocks = vi.hoisted(() => ({
+  update: vi.fn(),
+  getTicketByCode: vi.fn(),
+  saveEntryLog: vi.fn(),
+  getMeta: vi.fn(),
+}))
 vi.mock('../services/api', () => ({
   default: { get: mocks.get, post: mocks.post },
+}))
+vi.mock('../services/localDB', () => ({
+  db: { tickets: { update: dbMocks.update, get: vi.fn() } },
+  getTicketByCode: dbMocks.getTicketByCode,
+  saveEntryLog: dbMocks.saveEntryLog,
+  getMeta: dbMocks.getMeta,
 }))
 
 describe('ValidationResult', () => {
@@ -87,6 +101,52 @@ describe('SearchPanel', () => {
     await waitFor(() => {
       const buttons = screen.getAllByRole('button', { name: /Confirmar entrada/i })
       expect(buttons).toHaveLength(2)
+    })
+  })
+})
+
+describe('useValidation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
+    useTerminalStore.setState({ eventId: 'evt-123', terminalId: 'term-1' })
+    useAuthStore.setState({ user: { id: 'validator-1' } })
+    dbMocks.getMeta.mockResolvedValue({ reentry_mode: 'none' })
+    dbMocks.saveEntryLog.mockResolvedValue({ id: 1 })
+    dbMocks.update.mockResolvedValue(1)
+  })
+
+  it('T-val-5: processa duplicate do servidor e marca o ticket local como validado', async () => {
+    const localTicket = {
+      id: 7,
+      ticket_code: 'ticket-1',
+      status: 'active',
+      display_name: 'Maria S.',
+    }
+    dbMocks.getTicketByCode
+      .mockResolvedValueOnce(localTicket)
+      .mockResolvedValueOnce({ ...localTicket, status: 'active' })
+    mocks.post.mockResolvedValueOnce({ data: { status: 'duplicate' } })
+
+    const { result } = renderHook(() => useValidation())
+    await act(async () => {
+      await result.current.validateTicket('ticket-1')
+    })
+
+    await waitFor(() => {
+      expect(mocks.post).toHaveBeenCalledWith('/api/validation/qrcode', {
+        ticket_code: 'ticket-1',
+        event_id: 'evt-123',
+        terminal_id: 'term-1',
+      })
+    })
+    await waitFor(() => {
+      expect(dbMocks.getTicketByCode).toHaveBeenCalledTimes(2)
+      expect(dbMocks.update).toHaveBeenCalledTimes(2)
+      expect(dbMocks.update).toHaveBeenLastCalledWith(7, expect.objectContaining({
+        status: 'validated',
+        updated_at: expect.any(String),
+      }))
     })
   })
 })

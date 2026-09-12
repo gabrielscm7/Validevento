@@ -46,13 +46,28 @@ export function useValidation() {
   const configOf = async () => (await getMeta('event_config')) || { ...DEFAULT_CONFIG }
 
   /** Confirma no servidor em background (não bloqueia a resposta ao usuário). */
-  const confirmOnServer = useCallback((ticketCode) => {
-    if (!ticketCode || (typeof navigator !== 'undefined' && !navigator.onLine)) return
-    api.post('/api/validation/qrcode', {
-      ticket_code: ticketCode,
-      event_id: eventId,
-      terminal_id: terminalId,
-    }).catch(() => {})
+  const confirmOnServer = useCallback(async (ticketCode) => {
+    if (!ticketCode) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+
+    try {
+      const { data } = await api.post('/api/validation/qrcode', {
+        ticket_code: ticketCode,
+        event_id: eventId,
+        terminal_id: terminalId,
+      })
+
+      // Se outro terminal venceu a corrida, atualiza o estado local.
+      if (data?.status === 'duplicate') {
+        const ticket = await getTicketByCode(ticketCode)
+        if (ticket && ticket.status !== 'validated') {
+          await db.tickets.update(ticket.id, {
+            status: 'validated',
+            updated_at: new Date().toISOString(),
+          })
+        }
+      }
+    } catch { /* offline ou erro de rede — sync resolve na próxima vez */ }
   }, [eventId, terminalId])
 
   /** Aplica a máquina de estados local para um ticket encontrado no IndexedDB. */
