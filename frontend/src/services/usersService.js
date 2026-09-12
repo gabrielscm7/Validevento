@@ -17,6 +17,11 @@ export async function updateUser(id, payload) {
   return data
 }
 
+export async function updateUserProfile(id, payload) {
+  const { data } = await api.patch(`/api/users/${id}/profile`, payload)
+  return data
+}
+
 export async function deactivateUser(id) {
   const { data } = await api.patch(`/api/users/${id}/deactivate`)
   return data

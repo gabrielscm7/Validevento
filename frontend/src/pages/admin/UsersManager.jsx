@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import TopBar from '../../components/TopBar'
 import { PageLoader, ErrorNotice, EmptyState } from '../../components/feedback'
 import { Modal, Btn } from '../../components/ui'
-import { listUsers, createUser, updateUser, deactivateUser } from '../../services/usersService'
+import { listUsers, createUser, updateUser, updateUserProfile, deactivateUser } from '../../services/usersService'
 import { formatCPF, onlyDigits, ROLE_LABEL } from '../../lib/format'
 import { useAuthStore } from '../../store/authStore'
 
@@ -15,6 +15,9 @@ export default function UsersManager() {
   const [error, setError] = useState('')
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
+  const [editing, setEditing] = useState(null)
+  const [editForm, setEditForm] = useState({ name: '', email: '' })
+  const [editModal, setEditModal] = useState(false)
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -84,6 +87,31 @@ export default function UsersManager() {
     }
   }
 
+  function openEdit(u) {
+    setEditing(u)
+    setEditForm({ name: u.name, email: u.email })
+    setEditModal(true)
+    setError('')
+  }
+
+  async function handleEdit(e) {
+    e.preventDefault()
+    if (!editing) return
+
+    setBusy(true)
+    setError('')
+    try {
+      await updateUserProfile(editing.id, editForm)
+      setEditModal(false)
+      setEditing(null)
+      await load()
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Falha ao atualizar usuário.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (loading) return (<div className="page"><TopBar /><PageLoader /></div>)
 
   return (
@@ -143,11 +171,18 @@ export default function UsersManager() {
                     <td>{u.active ? <span className="badge badge-green">Ativo</span> : <span className="badge badge-red">Desativado</span>}</td>
                     <td>
                       {u.id !== me?.id && (
-                        <button type="button" className="btn-ghost btn-sm"
-                          style={u.active ? { color: 'var(--danger)' } : undefined}
-                          onClick={() => handleToggle(u)}>
-                          {u.active ? 'Desativar' : 'Reativar'}
-                        </button>
+                        <div className="flex gap-2">
+                          {(u.role === 'supervisor' || u.role === 'validator') && (
+                            <button type="button" className="btn-ghost btn-sm" onClick={() => openEdit(u)}>
+                              Editar
+                            </button>
+                          )}
+                          <button type="button" className="btn-ghost btn-sm"
+                            style={u.active ? { color: 'var(--danger)' } : undefined}
+                            onClick={() => handleToggle(u)}>
+                            {u.active ? 'Desativar' : 'Reativar'}
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -190,6 +225,32 @@ export default function UsersManager() {
               <option value="validator">Validador</option>
             </select>
             <span className="hint">Somente o Master cria administradores.</span>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={editModal} onClose={() => setEditModal(false)} title="Editar usuário"
+        footer={
+          <>
+            <Btn variant="ghost" onClick={() => setEditModal(false)}>Cancelar</Btn>
+            <Btn variant="primary" loading={busy}
+              onClick={handleEdit}
+              disabled={!editForm.name.trim() || !editForm.email.trim()}>
+              Salvar alterações
+            </Btn>
+          </>
+        }>
+        <form onSubmit={handleEdit}>
+          <div className="field">
+            <label className="label">Nome completo *</label>
+            <input className="input" value={editForm.name}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+          </div>
+          <div className="field">
+            <label className="label">E-mail *</label>
+            <input type="email" className="input" value={editForm.email}
+              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+            <span className="hint">Ao trocar o e-mail, um novo link de ativação será enviado.</span>
           </div>
         </form>
       </Modal>

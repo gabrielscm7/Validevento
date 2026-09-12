@@ -162,6 +162,95 @@ async function updateUser(id, tenantId, fields) {
 }
 
 /**
+ * Edita apenas dados cadastrais de Supervisor/Validador.
+ * A troca de e-mail exige nova ativação para impedir login sem confirmação.
+ */
+async function updateProfile(id, tenantId, fields) {
+  const input = fields || {};
+  const name = input.name !== undefined ? input.name : undefined;
+  const email = input.email !== undefined ? input.email : undefined;
+
+  if (name === undefined && email === undefined) {
+    throw apiError(400, 'no_fields', 'Informe nome ou e-mail para atualizar.');
+  }
+  if (name !== undefined && (typeof name !== 'string' || !name.trim() || name.trim().length > 255)) {
+    throw apiError(422, 'invalid_name', 'Nome inválido.');
+  }
+  if (email !== undefined && (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))) {
+    throw apiError(422, 'invalid_email', 'E-mail inválido.');
+  }
+
+  const normalizedName = name !== undefined ? name.trim() : undefined;
+  const normalizedEmail = email !== undefined ? email.trim().toLowerCase() : undefined;
+
+  const targetQuery = tenantId
+    ? `SELECT id, tenant_id, role, name, email, email_verified
+       FROM users WHERE id = $1 AND tenant_id = $2`
+    : `SELECT id, tenant_id, role, name, email, email_verified
+       FROM users WHERE id = $1`;
+  const targetParams = tenantId ? [id, tenantId] : [id];
+  const targetRes = await db.query(targetQuery, targetParams);
+  if (targetRes.rowCount === 0) return null;
+
+  const target = targetRes.rows[0];
+  if (!['supervisor', 'validator'].includes(target.role)) {
+    throw apiError(403, 'profile_edit_forbidden', 'Somente Supervisores e Validadores podem ser editados nesta operação.');
+  }
+
+  const emailChanged = normalizedEmail !== undefined && normalizedEmail !== target.email.toLowerCase();
+  const updates = [];
+  const params = [];
+  let index = 1;
+
+  if (name !== undefined) {
+    updates.push(`name = $${index++}`);
+    params.push(normalizedName);
+  }
+  if (emailChanged) {
+    const activationToken = crypto.randomBytes(32).toString('hex');
+    const exp = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    updates.push(`email = $${index++}`, 'email_verified = false', `email_token = $${index++}`, `email_token_exp = $${index++}`);
+    params.push(normalizedEmail, activationToken, exp);
+  }
+
+  if (updates.length === 0) {
+    const current = await db.query(`SELECT ${PUBLIC_COLUMNS} FROM users WHERE id = $1`, [id]);
+    return { user: current.rows[0], changedFields: [] };
+  }
+
+  params.push(id);
+  let query = `UPDATE users SET ${updates.join(', ')} WHERE id = $${index++}`;
+  if (tenantId) {
+    query += ` AND tenant_id = $${index++}`;
+    params.push(tenantId);
+  }
+  query += ` RETURNING ${PUBLIC_COLUMNS}`;
+
+  let result;
+  try {
+    result = await db.query(query, params);
+  } catch (error) {
+    if (error.code === '23505') {
+      throw apiError(409, 'email_already_exists', 'E-mail já cadastrado.');
+    }
+    throw error;
+  }
+
+  const user = result.rows[0] || null;
+  if (user && emailChanged) {
+    await sendActivationEmail(user.email, user.name, params[index - 3]);
+  }
+
+  return {
+    user,
+    changedFields: [
+      ...(name !== undefined ? ['name'] : []),
+      ...(emailChanged ? ['email'] : []),
+    ],
+  };
+}
+
+/**
  * Desativa usuário (active = false). Admin restrito ao próprio tenant.
  */
 async function deactivateUser(id, tenantId) {
@@ -183,6 +272,7 @@ module.exports = {
   listUsers,
   createUser,
   updateUser,
+  updateProfile,
   deactivateUser,
   VALID_ROLES,
 };
