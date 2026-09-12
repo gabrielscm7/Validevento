@@ -60,3 +60,10 @@ Pendente antes do deploy:
 3. Orientar validadores a fazer logout e novo login no dia do evento.
 
 Deploy não executado nesta sessão.
+
+Consulta operacional sem deploy:
+
+- Railway production está sem staged changes; backend e frontend estão online.
+- `EMAIL_FROM` aparece definido nas variáveis do serviço backend.
+- `https://api.validevento.com.br/health` respondeu `{"status":"ok"}`.
+- O status do job no cron-job.org não foi verificável por esta integração; confirmar no painel.
