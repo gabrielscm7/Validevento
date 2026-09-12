@@ -105,4 +105,25 @@ describe('Login', () => {
       expect(screen.getByText('HOME_ADMIN')).toBeInTheDocument()
     })
   })
+
+  it('T-auth-restore-1: limpa sessão quando o JWT restaurado está expirado', () => {
+    const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 1 }))
+    const token = `header.${payload}.signature`
+
+    useAuthStore.setState({
+      user: { id: '1', role: 'validator' },
+      token: null,
+      isAuthenticated: false,
+    })
+    window.localStorage.setItem('ve_token', token)
+
+    useAuthStore.getState().restoreSession()
+
+    expect(window.localStorage.getItem('ve_token')).toBeNull()
+    expect(useAuthStore.getState()).toMatchObject({
+      user: null,
+      token: null,
+      isAuthenticated: false,
+    })
+  })
 })

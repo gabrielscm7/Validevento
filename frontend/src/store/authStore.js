@@ -31,9 +31,24 @@ export const useAuthStore = create(
 
       restoreSession: () => {
         const token = localStorage.getItem(TOKEN_KEY)
-        if (token && get().user) {
-          set({ token, isAuthenticated: true })
+        if (!token || !get().user) return
+
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]))
+          if (payload.exp && payload.exp * 1000 < Date.now()) {
+            // Token expirado — limpa estado e força novo login
+            localStorage.removeItem(TOKEN_KEY)
+            set({ user: null, token: null, isAuthenticated: false })
+            return
+          }
+        } catch {
+          // Token malformado — limpa por segurança
+          localStorage.removeItem(TOKEN_KEY)
+          set({ user: null, token: null, isAuthenticated: false })
+          return
         }
+
+        set({ token, isAuthenticated: true })
       },
 
       isAdmin: () => get().user?.role === 'admin',
