@@ -155,4 +155,147 @@ describe('Gestão de portões (Fase 2)', () => {
     );
     expect(log.rows[0].gate_id).toBe(gateId);
   });
+
+  test('T-gate-terminal-1: terminal pode se associar a portão fechado', async () => {
+    const terminalId = require('crypto').randomUUID();
+    const create = await api()
+      .post(`/api/events/${eventId}/gates`)
+      .set(auth(adminToken))
+      .send({ name: 'Portão Fechado' });
+    expect(create.status).toBe(201);
+    const gateId = create.body.id;
+
+    await api().post('/api/sync/heartbeat').set(auth(adminToken)).send({
+      event_id: eventId, terminal_id: terminalId, name: 'Terminal Fechado',
+    });
+
+    const assign = await api()
+      .patch(`/api/events/${eventId}/terminals/${terminalId}/gate`)
+      .set(auth(adminToken))
+      .send({ gate_id: gateId });
+
+    expect(assign.status).toBe(200);
+    expect(assign.body.gate_id).toBe(gateId);
+    expect(assign.body.gate_open).toBe(false);
+    expect(assign.body.gate_status).toBe('closed');
+  });
+
+  test('T-gate-terminal-2: validação funciona sem portão selecionado', async () => {
+    const crypto = require('crypto');
+    const terminalId = crypto.randomUUID();
+    const ticketCode = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO tickets (event_id, tenant_id, ticket_code, batch, display_name, status)
+       SELECT $1, tenant_id, $2, 'TESTE', 'Sem Portão', 'active' FROM events WHERE id = $1`,
+      [eventId, ticketCode]
+    );
+
+    const validation = await api()
+      .post('/api/validation/qrcode')
+      .set(auth(adminToken))
+      .send({ event_id: eventId, ticket_code: ticketCode, terminal_id: terminalId });
+
+    expect(validation.status).toBe(200);
+    expect(validation.body.status).toBe('authorized');
+
+    const log = await pool.query(
+      `SELECT gate_id FROM entry_logs
+       WHERE event_id = $1 AND ticket_id = (SELECT id FROM tickets WHERE ticket_code = $2)`,
+      [eventId, ticketCode]
+    );
+    expect(log.rows[0].gate_id).toBeNull();
+  });
+
+  test('T-gate-offline-1: log offline com portão fechado após sync é aceito', async () => {
+    const crypto = require('crypto');
+    const terminalId = crypto.randomUUID();
+    const ticketCode = crypto.randomUUID();
+    const create = await api()
+      .post(`/api/events/${eventId}/gates`)
+      .set(auth(adminToken))
+      .send({ name: 'Portão Offline 1' });
+    const gateId = create.body.id;
+
+    await api().patch(`/api/events/${eventId}/gates/${gateId}/open`).set(auth(adminToken));
+    const createdAt = new Date().toISOString();
+    await api().patch(`/api/events/${eventId}/gates/${gateId}/close`).set(auth(adminToken));
+
+    await pool.query(
+      `INSERT INTO tickets (event_id, tenant_id, ticket_code, batch, display_name, status)
+       SELECT $1, tenant_id, $2, 'TESTE', 'Offline 1', 'active' FROM events WHERE id = $1`,
+      [eventId, ticketCode]
+    );
+
+    const res = await api()
+      .post('/api/sync/logs')
+      .set(auth(adminToken))
+      .send({
+        event_id: eventId,
+        terminal_id: terminalId,
+        logs: [{
+          local_id: 'offline-1',
+          ticket_code: ticketCode,
+          entry_type: 'qrcode',
+          gate_id: gateId,
+          created_at: createdAt,
+        }],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.processed).toBe(1);
+    expect(res.body.errors).toHaveLength(0);
+
+    const log = await pool.query(
+      `SELECT gate_id FROM entry_logs
+       WHERE event_id = $1 AND ticket_id = (SELECT id FROM tickets WHERE ticket_code = $2)`,
+      [eventId, ticketCode]
+    );
+    expect(log.rows[0].gate_id).toBe(gateId);
+  });
+
+  test('T-gate-offline-2: log offline anterior à abertura do portão é rejeitado sem erro', async () => {
+    const crypto = require('crypto');
+    const terminalId = crypto.randomUUID();
+    const ticketCode = crypto.randomUUID();
+    const create = await api()
+      .post(`/api/events/${eventId}/gates`)
+      .set(auth(adminToken))
+      .send({ name: 'Portão Offline 2' });
+    const gateId = create.body.id;
+
+    const createdAt = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1h atrás
+    await api().patch(`/api/events/${eventId}/gates/${gateId}/open`).set(auth(adminToken));
+
+    await pool.query(
+      `INSERT INTO tickets (event_id, tenant_id, ticket_code, batch, display_name, status)
+       SELECT $1, tenant_id, $2, 'TESTE', 'Offline 2', 'active' FROM events WHERE id = $1`,
+      [eventId, ticketCode]
+    );
+
+    const res = await api()
+      .post('/api/sync/logs')
+      .set(auth(adminToken))
+      .send({
+        event_id: eventId,
+        terminal_id: terminalId,
+        logs: [{
+          local_id: 'offline-2',
+          ticket_code: ticketCode,
+          entry_type: 'qrcode',
+          gate_id: gateId,
+          created_at: createdAt,
+        }],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.processed).toBe(1);
+    expect(res.body.errors).toHaveLength(0);
+
+    const log = await pool.query(
+      `SELECT gate_id FROM entry_logs
+       WHERE event_id = $1 AND ticket_id = (SELECT id FROM tickets WHERE ticket_code = $2)`,
+      [eventId, ticketCode]
+    );
+    expect(log.rows[0].gate_id).toBeNull();
+  });
 });

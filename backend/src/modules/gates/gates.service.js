@@ -134,6 +134,7 @@ async function getTerminalGate({ eventId, terminalId }) {
     terminal_id: row.terminal_id,
     gate_id: row.gate_id,
     gate_name: row.gate_name || null,
+    gate_status: row.opened_at && !row.closed_at ? 'open' : 'closed',
     gate_open: !!(row.opened_at && !row.closed_at),
   };
 }
@@ -163,9 +164,8 @@ async function setTerminalGate({ eventId, terminalId, gateId }) {
     if (gate.rowCount === 0) {
       throw apiError(404, 'gate_not_found', 'Portão não encontrado.');
     }
-    if (!gate.rows[0].opened_at || gate.rows[0].closed_at) {
-      throw apiError(422, 'gate_not_open', 'Escolha um portão aberto.');
-    }
+    // O status do portão é informação de auditoria — não impede a
+    // associação do terminal (aberto ou fechado).
   }
 
   await db.query(

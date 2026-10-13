@@ -29,8 +29,8 @@ export default function Terminal() {
 
   const { user, logout } = useAuthStore()
   const { initTerminal, setLastResult, setGate } = useTerminalStore()
-  const gateId = useTerminalStore((s) => s.gateId)
   const gateName = useTerminalStore((s) => s.gateName)
+  const gateOpen = useTerminalStore((s) => s.gateOpen)
   const { validateTicket, checkoutTicket, validateManual } = useValidation()
 
   const [eventName, setEventName] = useState('Evento')
@@ -53,8 +53,9 @@ export default function Terminal() {
     const savedGate = await getMeta('terminal_gate')
     if (savedGate) {
       await setGate({
-        gateId: savedGate.gate_id && savedGate.gate_open !== false ? savedGate.gate_id : null,
-        gateName: savedGate.gate_id && savedGate.gate_open !== false ? savedGate.gate_name : null,
+        gateId: savedGate.gate_id || null,
+        gateName: savedGate.gate_name || null,
+        gateOpen: !!savedGate.gate_id && savedGate.gate_open !== false,
       })
     }
     const cachedGates = await getMeta('event_gates')
@@ -85,10 +86,14 @@ export default function Terminal() {
         ])
         setGates(gateRows || [])
         await saveMeta('event_gates', gateRows || [])
-        if (current?.gate_id && current.gate_open) {
-          await setGate({ gateId: current.gate_id, gateName: current.gate_name })
+        if (current?.gate_id) {
+          await setGate({
+            gateId: current.gate_id,
+            gateName: current.gate_name,
+            gateOpen: !!current.gate_open,
+          })
         } else {
-          await setGate({ gateId: null, gateName: null })
+          await setGate({ gateId: null, gateName: null, gateOpen: false })
         }
       } catch {
         const cachedGates = await getMeta('event_gates')
@@ -109,7 +114,7 @@ export default function Terminal() {
     const terminalId = useTerminalStore.getState().terminalId
     try {
       await api.patch(`/api/events/${eventId}/terminals/${terminalId}/gate`, { gate_id: gate.id })
-      await setGate({ gateId: gate.id, gateName: gate.name })
+      await setGate({ gateId: gate.id, gateName: gate.name, gateOpen: gate.status ? gate.status === 'open' : true })
       setShowGatePicker(false)
     } catch (error) {
       setResult({ status: 'error', reason: error?.response?.data?.details || 'Não foi possível selecionar o portão.' })
@@ -195,31 +200,32 @@ export default function Terminal() {
 
       {/* 2. Subtítulo */}
       <div className="terminal-context">
-        {eventName} · Terminal de Portaria
+        {eventName}
+        {gateName
+          ? ` · ${gateName}`
+          : gates.length > 0
+            ? ''
+            : ' · Portaria Única'}
+        {gateName && !gateOpen && (
+          <span style={{ color: 'rgba(255,200,0,0.8)', fontSize: 11 }}> (portão fechado)</span>
+        )}
+        {gates.length > 0 && (
+          <button type="button" className="t-btn" onClick={() => setShowGatePicker(true)}>
+            {gateName ? 'Trocar portão' : '⚠ Sem portão — toque para selecionar'}
+          </button>
+        )}
         {modeLabel ? ` · modo ${modeLabel}` : ''}
-        <button type="button" className="t-btn" onClick={() => setShowGatePicker(true)}>
-          {gateName || (gates.length ? 'Selecionar portão' : 'Portaria Única')}
-        </button>
       </div>
 
-      {/* 3. Scanner */}
+      {/* 3. Scanner — sempre disponível, nunca bloqueado */}
       <main className="terminal-main">
         {result ? (
           <ValidationResult result={result} onDismiss={handleDismiss} />
         ) : (
-          gates.length > 0 && !gateId ? (
-            <div className="terminal-empty">
-              <p>Selecione o portão antes de iniciar as validações.</p>
-              <button type="button" className="btn btn-primary" onClick={() => setShowGatePicker(true)}>
-                Escolher portão
-              </button>
-            </div>
-          ) : (
-            <>
-              <QRScanner onScan={handleScan} active={scanReady} />
-              {syncing && <p className="scan-hint">sincronizando com o servidor…</p>}
-            </>
-          )
+          <>
+            <QRScanner onScan={handleScan} active={scanReady} />
+            {syncing && <p className="scan-hint">sincronizando com o servidor…</p>}
+          </>
         )}
       </main>
 
@@ -281,9 +287,9 @@ export default function Terminal() {
           <div className="terminal-dialog">
             <h2>Selecione o portão</h2>
             <div className="grid gap-sm mt-3">
-              {gates.filter((gate) => gate.status === 'open').map((gate) => (
+              {gates.map((gate) => (
                 <button key={gate.id} type="button" className="btn btn-primary" onClick={() => chooseGate(gate)}>
-                  {gate.name}
+                  {gate.name}{gate.status && gate.status !== 'open' ? ' (fechado)' : ''}
                 </button>
               ))}
             </div>

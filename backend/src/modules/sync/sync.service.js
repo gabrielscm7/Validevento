@@ -257,13 +257,17 @@ async function resolveOfflineGate(client, eventId, gateId, createdAt) {
      WHERE id = $1 AND event_id = $2`,
     [gateId, eventId]
   );
-  if (result.rowCount === 0) throw new Error('Portão não encontrado neste evento.');
+  if (result.rowCount === 0) return null;
   const gate = result.rows[0];
-  if (!gate.opened_at || new Date(gate.opened_at) > createdAt ||
-      (gate.closed_at && new Date(gate.closed_at) < createdAt)) {
-    throw new Error('O portão não estava aberto no momento da validação.');
-  }
-  return gate.id;
+
+  // Portão nunca foi aberto
+  if (!gate.opened_at) return null;
+
+  // O log foi criado DEPOIS que o portão abriu — aceitar mesmo que o
+  // portão já tenha fechado depois do log. Log anterior à abertura
+  // perde a referência (gate_id null), sem erro.
+  if (createdAt >= new Date(gate.opened_at)) return gate.id;
+  return null;
 }
 
 async function processCheckoutLog(client, eventId, ticket, log, tenantId) {

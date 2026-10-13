@@ -16,6 +16,7 @@ export const useTerminalStore = create(
       terminalName: null,
       gateId: null,
       gateName: null,
+      gateOpen: false,
       eventId: import.meta.env.VITE_EVENT_ID || null,
       lastResult: null,
       loadingEvent: false,
@@ -44,6 +45,7 @@ export const useTerminalStore = create(
           terminalName: name || get().terminalName || 'Terminal de Portaria',
           gateId: gate?.gate_id || get().gateId || null,
           gateName: gate?.gate_name || get().gateName || null,
+          gateOpen: gate?.gate_open !== undefined ? !!gate.gate_open : get().gateOpen,
           eventId: resolvedEventId,
           initialized: true,
         })
@@ -63,15 +65,20 @@ export const useTerminalStore = create(
         if (eventId) await setEventId(eventId)
       },
 
-      setGate: async ({ gateId, gateName }) => {
-        set({ gateId: gateId || null, gateName: gateName || null })
+      setGate: async ({ gateId, gateName, gateOpen }) => {
+        set({
+          gateId: gateId || null,
+          gateName: gateName || null,
+          gateOpen: gateOpen === undefined ? get().gateOpen : !!gateOpen,
+        })
         await saveMeta('terminal_gate', {
           gate_id: gateId || null,
           gate_name: gateName || null,
+          gate_open: gateOpen === undefined ? get().gateOpen : !!gateOpen,
         })
       },
 
-      clear: () => set({ terminalId: null, terminalName: null, gateId: null, gateName: null, lastResult: null }),
+      clear: () => set({ terminalId: null, terminalName: null, gateId: null, gateName: null, gateOpen: false, lastResult: null }),
 
       isConfigured: () => !!get().terminalId && !!get().eventId,
 
@@ -102,6 +109,7 @@ export const useTerminalStore = create(
         terminalName: s.terminalName,
         gateId: s.gateId,
         gateName: s.gateName,
+        gateOpen: s.gateOpen,
         eventId: s.eventId,
       }),
     }

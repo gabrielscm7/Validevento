@@ -70,4 +70,29 @@ describe('Terminal', () => {
     const btn2 = await screen.findByTestId('master-ticket-btn')
     await waitFor(() => expect(btn2).toBeVisible())
   })
+
+  function mockGatesClosed() {
+    mocks.get.mockImplementation((url) => {
+      if (url.endsWith('/gates')) {
+        return Promise.resolve({ data: [{ id: 'g1', name: 'Portão 1', status: 'closed' }] })
+      }
+      if (url.includes('/gate')) {
+        return Promise.resolve({ data: { gate_id: null, gate_open: false } })
+      }
+      return Promise.resolve({ data: { id: VALID_EVENT_ID, name: 'Festa do Cliente' } })
+    })
+  }
+
+  it('T-terminal-no-gate: scanner visível mesmo sem portão selecionado', async () => {
+    mockGatesClosed()
+    const { container } = renderTerminal()
+    await waitFor(() => expect(container.querySelector('#qr-reader-region')).toBeTruthy())
+    expect(screen.queryByText(/Selecione o portão/i)).toBeNull()
+  })
+
+  it('T-terminal-gate-warning: aviso suave quando portão não selecionado', async () => {
+    mockGatesClosed()
+    renderTerminal()
+    expect(await screen.findByText(/Sem portão/i)).toBeInTheDocument()
+  })
 })

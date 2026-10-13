@@ -40,12 +40,8 @@ async function resolveGate(client, eventId, terminalId) {
   );
   const row = result.rows[0];
   if (!row?.gate_id) return null;
-  if (!row.opened_at || row.closed_at) {
-    const error = new Error('O portão selecionado está fechado. Escolha outro portão.');
-    error.status = 422;
-    error.code = 'gate_not_open';
-    throw error;
-  }
+  // Portão fechado não bloqueia a validação: registra gate_id null no log.
+  if (!row.opened_at || row.closed_at) return null;
   return row.gate_id;
 }
 
