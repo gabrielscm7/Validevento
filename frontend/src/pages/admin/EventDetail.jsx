@@ -6,7 +6,7 @@ import { Modal, Btn } from '../../components/ui'
 import ImportTicketsModal from '../../components/admin/ImportTicketsModal'
 import EventShareCard from '../../components/EventShareCard'
 import PurgeEventModal from '../../components/PurgeEventModal'
-import { getEvent, changeEventStatus, resetAndReopenEvent } from '../../services/eventsService'
+import { getEvent, changeEventStatus, resetAndReopenEvent, listTerminals, createGenericTerminal } from '../../services/eventsService'
 import { createInvitation } from '../../services/eventsActionsService'
 import { formatDateTime, formatCPF } from '../../lib/format'
 import { setLastEventId } from '../../lib/lastEvent'
@@ -24,6 +24,9 @@ export default function EventDetail() {
   const [inviteResult, setInviteResult] = useState(null)
   const [purgeOpen, setPurgeOpen] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
+  const [generics, setGenerics] = useState([])
+  const [genericModal, setGenericModal] = useState(false)
+  const [genericName, setGenericName] = useState('')
   const navigate = useNavigate()
 
   const load = useCallback(async () => {
@@ -33,6 +36,12 @@ export default function EventDetail() {
       const data = await getEvent(id)
       setEvent(data)
       setLastEventId(data.id)
+      try {
+        const terminals = await listTerminals(id)
+        setGenerics((terminals || []).filter((t) => t.is_generic))
+      } catch {
+        setGenerics([])
+      }
     } catch (e) {
       setError(e?.response?.data?.error || 'Erro ao carregar evento.')
     } finally {
@@ -243,6 +252,44 @@ export default function EventDetail() {
           </div>
         </div>
 
+        {/* Terminais de acesso rápido */}
+        <div className="card card-pad mt-4">
+          <div className="card-head">
+            <h2 className="card-title">Terminais de acesso rápido</h2>
+            <Btn variant="outline" onClick={() => { setGenericName(''); setGenericModal(true) }}>
+              + Criar terminal
+            </Btn>
+          </div>
+          <p className="card-sub">
+            Terminais genéricos não exigem login. Qualquer pessoa com o link
+            pode operar como validador.
+          </p>
+          {generics.length === 0 && (
+            <p className="card-sub">Nenhum terminal genérico criado ainda.</p>
+          )}
+          {generics.map((t) => {
+            const link = `${window.location.origin}/terminal/join/${t.slug}`
+            return (
+              <div key={t.id} className="entity-row" style={{ marginTop: 8 }}>
+                <div className="flex-1" style={{ minWidth: 0 }}>
+                  <p className="font-semibold" style={{ color: 'var(--text-strong)' }}>{t.name}</p>
+                  <p className="text-xs text-muted font-mono truncate">{link}</p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(link)
+                    toast.success('Link copiado.')
+                  }}
+                >
+                  Copiar link
+                </button>
+              </div>
+            )
+          })}
+        </div>
+
         {(event?.status === 'closed' || event?.status === 'draft') && (
           <section className="card card-pad mt-4" style={{ borderTop: '2px solid var(--danger)' }}>
             <h2 className="card-title" style={{ color: 'var(--danger)' }}>Zona de Risco</h2>
@@ -304,6 +351,54 @@ export default function EventDetail() {
             <p className="text-sm text-muted mt-2">
               Use esta opção para corrigir problemas de importação
               ou reiniciar a operação do evento.
+            </p>
+          </Modal>
+        )}
+
+        {genericModal && (
+          <Modal
+            open
+            title="Criar terminal de acesso rápido"
+            onClose={() => setGenericModal(false)}
+            footer={
+              <>
+                <Btn variant="ghost" onClick={() => setGenericModal(false)}>Cancelar</Btn>
+                <Btn
+                  variant="primary"
+                  loading={busy}
+                  disabled={!genericName.trim()}
+                  onClick={async () => {
+                    setBusy(true)
+                    try {
+                      await createGenericTerminal(event.id, genericName.trim())
+                      toast.success('Terminal criado. Copie o link e compartilhe.')
+                      setGenericModal(false)
+                      await load()
+                    } catch (err) {
+                      toast.error(err?.response?.data?.details || 'Erro ao criar terminal.')
+                    } finally {
+                      setBusy(false)
+                    }
+                  }}
+                >
+                  Criar
+                </Btn>
+              </>
+            }
+          >
+            <div className="field">
+              <label className="label">Nome do terminal *</label>
+              <input
+                className="input"
+                value={genericName}
+                onChange={(e) => setGenericName(e.target.value)}
+                placeholder="Ex.: Portaria 1"
+                autoFocus
+              />
+            </div>
+            <p className="text-sm text-muted mt-2">
+              Um link público será gerado. Quem abrir poderá validar ingressos
+              sem criar conta.
             </p>
           </Modal>
         )}

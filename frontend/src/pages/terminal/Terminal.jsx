@@ -23,12 +23,15 @@ const DEFAULT_CONFIG = {
 }
 
 export default function Terminal() {
-  const { eventId: eventIdParam } = useParams()
-  const eventId = eventIdParam || import.meta.env.VITE_EVENT_ID || null
+  const { eventId: eventIdParam, slug: slugParam } = useParams()
   const navigate = useNavigate()
 
   const { user, logout } = useAuthStore()
   const { initTerminal, setLastResult, setGate } = useTerminalStore()
+  const storeEventId = useTerminalStore((s) => s.eventId)
+  const isGeneric = useTerminalStore((s) => s.isGeneric)
+  const generic = isGeneric || !!slugParam
+  const eventId = eventIdParam || storeEventId || import.meta.env.VITE_EVENT_ID || null
   const gateName = useTerminalStore((s) => s.gateName)
   const gateOpen = useTerminalStore((s) => s.gateOpen)
   const { validateTicket, checkoutTicket, validateManual } = useValidation()
@@ -71,6 +74,10 @@ export default function Terminal() {
   }, [refreshFromLocal])
 
   useEffect(() => {
+    if (slugParam) useTerminalStore.getState().setGeneric({ slug: slugParam })
+  }, [slugParam])
+
+  useEffect(() => {
     if (!eventId) return
     if (!isValidUUIDv4(eventId)) {
       setEventName('Link inválido')
@@ -80,9 +87,14 @@ export default function Terminal() {
     setLastEventId(eventId)
     initTerminal(eventId).then(async (terminalId) => {
       try {
+        const base = useTerminalStore.getState().genericBase()
+        const gatesUrl = base ? `${base}/gates` : `/api/events/${eventId}/gates`
+        const gateUrl = base
+          ? `${base}/gate`
+          : `/api/events/${eventId}/terminals/${terminalId}/gate`
         const [{ data: gateRows }, { data: current }] = await Promise.all([
-          api.get(`/api/events/${eventId}/gates`),
-          api.get(`/api/events/${eventId}/terminals/${terminalId}/gate`),
+          api.get(gatesUrl),
+          api.get(gateUrl),
         ])
         setGates(gateRows || [])
         await saveMeta('event_gates', gateRows || [])
@@ -101,19 +113,29 @@ export default function Terminal() {
       }
     })
 
-    api.get(`/api/events/${eventId}`)
-      .then(({ data }) => { if (mounted && data?.name) setEventName(data.name) })
-      .catch(() => {})
+    if (generic) {
+      getMeta('event_name').then((cachedName) => {
+        if (mounted && cachedName) setEventName(cachedName)
+      })
+    } else {
+      api.get(`/api/events/${eventId}`)
+        .then(({ data }) => { if (mounted && data?.name) setEventName(data.name) })
+        .catch(() => {})
+    }
 
     refreshFromLocal()
     if (typeof navigator !== 'undefined' && navigator.onLine) runSync()
     return () => { mounted = false }
-  }, [eventId, initTerminal, refreshFromLocal, runSync, setGate])
+  }, [eventId, generic, initTerminal, refreshFromLocal, runSync, setGate])
 
   async function chooseGate(gate) {
     const terminalId = useTerminalStore.getState().terminalId
     try {
-      await api.patch(`/api/events/${eventId}/terminals/${terminalId}/gate`, { gate_id: gate.id })
+      const base = useTerminalStore.getState().genericBase()
+      const url = base
+        ? `${base}/gate`
+        : `/api/events/${eventId}/terminals/${terminalId}/gate`
+      await api.patch(url, { gate_id: gate.id })
       await setGate({ gateId: gate.id, gateName: gate.name, gateOpen: gate.status ? gate.status === 'open' : true })
       setShowGatePicker(false)
     } catch (error) {
@@ -195,7 +217,7 @@ export default function Terminal() {
       <header className="terminal-topbar">
         <Logo size={26} light />
         <SyncStatus showForce={false} />
-        <span className="avatar" title={user?.name}>{initials(user?.name)}</span>
+        {!generic && <span className="avatar" title={user?.name}>{initials(user?.name)}</span>}
       </header>
 
       {/* 2. Subtítulo */}
@@ -254,12 +276,12 @@ export default function Terminal() {
         <button
           type="button"
           className="t-btn"
-          onClick={handleLogout}
+          onClick={generic ? () => navigate('/login') : handleLogout}
           aria-label="Sair"
         >
           ⏻
         </button>
-        {user?.role === 'admin' && (
+        {!generic && user?.role === 'admin' && (
           <button
             type="button"
             className="t-btn"

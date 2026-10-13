@@ -52,11 +52,14 @@ export function useValidation() {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
 
     try {
-      const { data } = await api.post('/api/validation/qrcode', {
-        ticket_code: ticketCode,
-        event_id: eventId,
-        terminal_id: terminalId,
-      })
+      const genericBase = useTerminalStore.getState().genericBase()
+      const { data } = genericBase
+        ? await api.post(`${genericBase}/qrcode`, { ticket_code: ticketCode })
+        : await api.post('/api/validation/qrcode', {
+          ticket_code: ticketCode,
+          event_id: eventId,
+          terminal_id: terminalId,
+        })
 
       // Se outro terminal venceu a corrida, atualiza o estado local.
       if (data?.status === 'duplicate') {
@@ -200,20 +203,25 @@ export function useValidation() {
     }
 
     try {
-      const { data } = await api.get('/api/validation/search', {
-        params: { event_id: eventId, q: code },
-      })
+      const genericBase = useTerminalStore.getState().genericBase()
+      const { data } = genericBase
+        ? await api.get(`${genericBase}/search`, { params: { q: code } })
+        : await api.get('/api/validation/search', {
+          params: { event_id: eventId, q: code },
+        })
       const found = (data.results || []).find(
         (r) => String(r.ticket_code).toLowerCase() === code.toLowerCase()
       )
       if (!found) return { status: RESULT.NOT_FOUND }
 
       // Encontrado no servidor → processa normalmente (validação remota)
-      const serverRes = await api.post('/api/validation/qrcode', {
-        ticket_code: code,
-        event_id: eventId,
-        terminal_id: terminalId,
-      })
+      const serverRes = genericBase
+        ? await api.post(`${genericBase}/qrcode`, { ticket_code: code })
+        : await api.post('/api/validation/qrcode', {
+          ticket_code: code,
+          event_id: eventId,
+          terminal_id: terminalId,
+        })
       await upsertRemoteTicket(serverRes.data, found)
       return serverRes.data
     } catch (err) {
@@ -238,11 +246,14 @@ export function useValidation() {
 
     // Id do servidor (busca online) — valida remotamente
     try {
-      const { data } = await api.post('/api/validation/manual', {
-        ticket_id: ticketId,
-        event_id: eventId,
-        terminal_id: terminalId,
-      })
+      const genericBase = useTerminalStore.getState().genericBase()
+      const { data } = genericBase
+        ? await api.post(`${genericBase}/manual`, { ticket_id: ticketId })
+        : await api.post('/api/validation/manual', {
+          ticket_id: ticketId,
+          event_id: eventId,
+          terminal_id: terminalId,
+        })
       if (!data || data.status === RESULT.NOT_FOUND) return { status: RESULT.NOT_FOUND }
       await upsertRemoteTicket(data, null)
       return data
@@ -258,9 +269,12 @@ export function useValidation() {
 
     try {
       if (typeof navigator !== 'undefined' && navigator.onLine) {
-        const { data } = await api.get('/api/validation/lookup', {
-          params: { code, event_id: eventId },
-        })
+        const genericBase = useTerminalStore.getState().genericBase()
+        const { data } = genericBase
+          ? await api.get(`${genericBase}/lookup`, { params: { code } })
+          : await api.get('/api/validation/lookup', {
+            params: { code, event_id: eventId },
+          })
         return data
       }
 
@@ -295,11 +309,14 @@ export function useValidation() {
     if (!ticket) {
       if (typeof navigator !== 'undefined' && navigator.onLine) {
         try {
-          const { data } = await api.post('/api/validation/checkout', {
-            ticket_code: code,
-            event_id: eventId,
-            terminal_id: terminalId,
-          })
+          const genericBase = useTerminalStore.getState().genericBase()
+          const { data } = genericBase
+            ? await api.post(`${genericBase}/checkout`, { ticket_code: code })
+            : await api.post('/api/validation/checkout', {
+              ticket_code: code,
+              event_id: eventId,
+              terminal_id: terminalId,
+            })
           return data
         } catch (err) {
           return { status: RESULT.ERROR, reason: err?.response?.data?.error || 'checkout_failed' }
@@ -332,11 +349,16 @@ export function useValidation() {
 
     // Confirma o checkout no servidor em background
     if (typeof navigator === 'undefined' || navigator.onLine) {
-      api.post('/api/validation/checkout', {
-        ticket_code: code,
-        event_id: eventId,
-        terminal_id: terminalId,
-      }).catch(() => {})
+      const genericBase = useTerminalStore.getState().genericBase()
+      if (genericBase) {
+        api.post(`${genericBase}/checkout`, { ticket_code: code }).catch(() => {})
+      } else {
+        api.post('/api/validation/checkout', {
+          ticket_code: code,
+          event_id: eventId,
+          terminal_id: terminalId,
+        }).catch(() => {})
+      }
     }
 
     return {

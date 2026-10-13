@@ -1,4 +1,5 @@
 import api from './api'
+import { useTerminalStore } from '../store/terminalStore'
 import {
   db,
   getEventId,
@@ -47,15 +48,19 @@ export async function syncWithServer() {
   try {
     const eventId = await getEventId()
     if (!eventId) return null
+    const genericBase = useTerminalStore.getState().genericBase()
 
     // 1. Heartbeat + recuperação de terminal_id
     let terminalId = await getTerminalId()
     try {
-      const { data } = await api.post('/api/sync/heartbeat', {
-        event_id: eventId,
-        terminal_id: terminalId || undefined,
-        name: (typeof navigator !== 'undefined' && navigator.userAgent?.slice(0, 80)) || 'Terminal Móvel',
-      })
+      const name = (typeof navigator !== 'undefined' && navigator.userAgent?.slice(0, 80)) || 'Terminal Móvel'
+      const { data } = genericBase
+        ? await api.post(`${genericBase}/heartbeat`, { name })
+        : await api.post('/api/sync/heartbeat', {
+          event_id: eventId,
+          terminal_id: terminalId || undefined,
+          name,
+        })
       if (data?.terminal_id) {
         terminalId = data.terminal_id
         await setTerminalId(terminalId)
@@ -69,11 +74,13 @@ export async function syncWithServer() {
     const pending = await getPendingLogs()
     if (pending.length > 0) {
       try {
-        const { data } = await api.post('/api/sync/logs', {
-          event_id: eventId,
-          terminal_id: terminalId || undefined,
-          logs: pending.map(toServerLog),
-        })
+        const { data } = genericBase
+          ? await api.post(`${genericBase}/logs`, { logs: pending.map(toServerLog) })
+          : await api.post('/api/sync/logs', {
+            event_id: eventId,
+            terminal_id: terminalId || undefined,
+            logs: pending.map(toServerLog),
+          })
         // Marcamos como sincronizados todos os logs enviados, exceto os que
         // o servidor reportou como erro (para não reenviar em loop).
         const errorIds = new Set((data?.errors ?? []).map((e) => e.local_id))
@@ -91,9 +98,13 @@ export async function syncWithServer() {
     const params = { event_id: eventId }
     if (lastSync) params.since = lastSync
 
-    const { data: snapshot } = await api.get('/api/sync/snapshot', {
-      params: { ...params, terminal_id: terminalId || undefined },
-    })
+    const { data: snapshot } = genericBase
+      ? await api.get(`${genericBase}/snapshot`, {
+        params: lastSync ? { since: lastSync } : {},
+      })
+      : await api.get('/api/sync/snapshot', {
+        params: { ...params, terminal_id: terminalId || undefined },
+      })
 
     // 4. Config + master ticket no meta
     if (snapshot.event_config) await saveMeta('event_config', snapshot.event_config)

@@ -55,9 +55,12 @@ export function SearchPanel({ open, onClose, onConfirm }) {
       const online = typeof navigator === 'undefined' || navigator.onLine
       try {
         if (online) {
-          const { data } = await api.get('/api/validation/search', {
-            params: { event_id: eventId, q },
-          })
+          const genericBase = useTerminalStore.getState().genericBase()
+          const { data } = genericBase
+            ? await api.get(`${genericBase}/search`, { params: { q } })
+            : await api.get('/api/validation/search', {
+              params: { event_id: eventId, q },
+            })
           setResults(data.results || [])
         } else {
           setResults(await searchLocal(q.toLowerCase()))

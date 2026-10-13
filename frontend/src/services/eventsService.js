@@ -37,3 +37,13 @@ export async function resetAndReopenEvent(eventId) {
   const { data } = await api.post(`/api/events/${eventId}/reset-and-reopen`)
   return data
 }
+
+export async function listTerminals(eventId) {
+  const { data } = await api.get(`/api/events/${eventId}/terminals`)
+  return data
+}
+
+export async function createGenericTerminal(eventId, name) {
+  const { data } = await api.post(`/api/events/${eventId}/terminals/generic`, { name })
+  return data
+}

@@ -90,3 +90,57 @@
 
 **Commit:** `feat(events): modo reset que mantém estrutura + botão resetar e reabrir`
 
+---
+
+## Sessão 3 — Terminal genérico por slug (endpoints públicos)
+
+**Status:** DONE
+
+### Abordagem aprovada
+Endpoints **públicos por slug** (sem JWT), reutilizando os serviços
+existentes (`validation`, `sync`, `gates`) com `validatorId = null`. O slug
+resolve para `(terminal_id, event_id, tenant_id)` e exige evento `active`.
+
+### 3a — Backend
+- Migration `011_terminal_slug.sql`: colunas `slug`/`is_generic`/`operator_name`
+  + função `generate_terminal_slug()` (6 chars, sem ambíguos).
+- Novo módulo `backend/src/modules/terminals/`:
+  - `terminals.service.js`: gera slug único, lista, resolve slug e config.
+  - `terminals.controller.js`: `resolveGenericTerminal` (middleware) + handlers.
+  - `terminals.routes.js`: `eventsRouter` (autenticado) e `publicRouter`.
+- `app.js`: monta `GET/POST /api/events/:eventId/terminals[/generic]`
+  (admin/supervisor/master) e `/api/terminal/*` (público).
+- **Rotas públicas criadas:** `join/:slug`, `join/:slug/open`, `:slug/gates`,
+  `:slug/gate` (GET/PATCH), `:slug/snapshot`, `:slug/logs`, `:slug/heartbeat`,
+  `:slug/lookup`, `:slug/search`, `:slug/qrcode`, `:slug/manual`,
+  `:slug/checkout`, `:slug/master`.
+- Correção de suposição do prompt: não existia `GET /api/events/:id/terminals`
+  — foi criado.
+
+### 3b — Frontend
+- `stores/terminalStore.js`: `slug`/`isGeneric`, `setGeneric()` e
+  `genericBase()` (base pública ou null); persistidos.
+- `services/syncService.js` e `hooks/useValidation.js`: usam `genericBase()`
+  para heartbeat/logs/snapshot e qrcode/manual/checkout/lookup/search.
+- `components/SearchPanel.jsx` e `components/MasterTicketModal.jsx`: branch
+  para os endpoints públicos.
+- `pages/terminal/JoinTerminal.jsx` (nova, pública): mostra terminal/evento,
+  registra operador e leva ao terminal via `/terminal/join/:slug/app`.
+- `pages/terminal/Terminal.jsx`: modo genérico (sem avatar/logout de usuário,
+  endpoints públicos).
+- `App.jsx`: rotas públicas `/terminal/join/:slug` e `/terminal/join/:slug/app`
+  antes da rota autenticada `/terminal/:eventId`.
+- `pages/admin/EventDetail.jsx` + `services/eventsService.js`: seção
+  "Terminais de acesso rápido" com criar/copiar link.
+
+### Testes
+- Backend `terminals.test.js`: `T-generic-1`..`T-generic-8`.
+- Frontend `joinTerminal.test.jsx`: `T-join-renders`,
+  `T-terminal-generic-sem-avatar`.
+- Resultados: backend **104 passed / 15 suítes**; frontend **24 passed**;
+  `npm run lint` limpo; `npm run build` OK.
+
+**Commits:** `feat(terminal): backend de acesso genérico por slug` +
+`feat(terminal): UI de acesso genérico sem login`
+
+

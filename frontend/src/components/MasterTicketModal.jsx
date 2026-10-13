@@ -25,12 +25,15 @@ export function MasterTicketModal({ open, onClose, onResult, usesCount, maxUses 
     setLoading(true)
     setError('')
     try {
-      const { data } = await api.post('/api/validation/master', {
-        event_id: eventId,
-        terminal_id: terminalId,
-        beneficiary_name: name.trim(),
-        validator_id: user?.id,
-      })
+      const genericBase = useTerminalStore.getState().genericBase()
+      const { data } = genericBase
+        ? await api.post(`${genericBase}/master`, { beneficiary_name: name.trim() })
+        : await api.post('/api/validation/master', {
+          event_id: eventId,
+          terminal_id: terminalId,
+          beneficiary_name: name.trim(),
+          validator_id: user?.id,
+        })
       playSound('authorized')
       setName('')
       onResult?.({ status: 'authorized', display_name: name.trim(), entry_type: 'master', ...data })

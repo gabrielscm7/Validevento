@@ -17,6 +17,8 @@ export const useTerminalStore = create(
       gateId: null,
       gateName: null,
       gateOpen: false,
+      slug: null,
+      isGeneric: false,
       eventId: import.meta.env.VITE_EVENT_ID || null,
       lastResult: null,
       loadingEvent: false,
@@ -78,7 +80,16 @@ export const useTerminalStore = create(
         })
       },
 
-      clear: () => set({ terminalId: null, terminalName: null, gateId: null, gateName: null, gateOpen: false, lastResult: null }),
+      clear: () => set({ terminalId: null, terminalName: null, gateId: null, gateName: null, gateOpen: false, slug: null, isGeneric: false, lastResult: null }),
+
+      /** Marca o dispositivo como terminal genérico (acesso por slug). */
+      setGeneric: ({ slug }) => set({ slug: slug || null, isGeneric: !!slug }),
+
+      /** Base dos endpoints públicos quando em modo genérico; senão null. */
+      genericBase: () => {
+        const { isGeneric, slug } = get()
+        return isGeneric && slug ? `/api/terminal/${slug}` : null
+      },
 
       isConfigured: () => !!get().terminalId && !!get().eventId,
 
@@ -110,6 +121,8 @@ export const useTerminalStore = create(
         gateId: s.gateId,
         gateName: s.gateName,
         gateOpen: s.gateOpen,
+        slug: s.slug,
+        isGeneric: s.isGeneric,
         eventId: s.eventId,
       }),
     }

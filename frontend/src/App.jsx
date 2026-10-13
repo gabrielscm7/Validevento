@@ -28,6 +28,7 @@ import GatesPanel from './pages/supervisor/GatesPanel'
 import ReportsPanel from './pages/supervisor/ReportsPanel'
 
 import Terminal from './pages/terminal/Terminal'
+import JoinTerminal from './pages/terminal/JoinTerminal'
 
 /** Redireciona usuário já autenticado que acessa rota pública. */
 function PublicOnly({ children }) {
@@ -81,6 +82,10 @@ export default function App() {
         <Route path="/supervisor/:eventId" element={<PrivateRoute allowedRoles={['supervisor', 'admin']}><EventDashboard /></PrivateRoute>} />
         <Route path="/supervisor/:eventId/portoes" element={<PrivateRoute allowedRoles={['supervisor', 'admin']}><GatesPanel /></PrivateRoute>} />
         <Route path="/supervisor/:eventId/relatorio" element={<PrivateRoute allowedRoles={['supervisor', 'admin']}><ReportsPanel /></PrivateRoute>} />
+
+        {/* Terminal genérico (acesso público por slug) */}
+        <Route path="/terminal/join/:slug" element={<JoinTerminal />} />
+        <Route path="/terminal/join/:slug/app" element={<Terminal />} />
 
         {/* Terminal (portaria) */}
         <Route path="/terminal/:eventId" element={<PrivateRoute allowedRoles={['validator', 'supervisor', 'admin']}><Terminal /></PrivateRoute>} />
