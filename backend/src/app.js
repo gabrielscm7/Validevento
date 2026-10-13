@@ -24,6 +24,7 @@ const eventTeamRoutes    = require('./modules/event-team/event-team.routes');
 const ticketsRoutes      = require('./modules/tickets/tickets.routes');
 const invitationsRoutes  = require('./modules/invitations/invitations.routes');
 const gatesRoutes        = require('./modules/gates/gates.routes');
+const terminalsRoutes    = require('./modules/terminals/terminals.routes');
 const reportsRoutes      = require('./modules/reports/reports.routes');
 const syncService        = require('./modules/sync/sync.service');
 
@@ -147,6 +148,8 @@ app.use('/api/events',     eventBatchesRoutes);
 app.use('/api/events',     ticketsRoutes);
 app.use('/api/events',     invitationsRoutes);
 app.use('/api/events',     gatesRoutes);
+app.use('/api/events',     terminalsRoutes.eventsRouter);
+app.use('/api/terminal',   terminalsRoutes.publicRouter);
 app.use('/api/events',     reportsRoutes); // v2: /api/events/:eventId/reports/*
 app.use('/api/admin',      adminRoutes);
 app.use('/api/users',      usersRoutes);
