@@ -26,7 +26,14 @@ export async function changeEventStatus(eventId, status) {
   return data
 }
 
-export async function purgeEventData(eventId) {
-  const { data } = await api.delete(`/api/events/${eventId}/purge`)
+export async function purgeEventData(eventId, mode = 'full') {
+  const { data } = await api.delete(`/api/events/${eventId}/purge`, {
+    data: { mode },
+  })
+  return data
+}
+
+export async function resetAndReopenEvent(eventId) {
+  const { data } = await api.post(`/api/events/${eventId}/reset-and-reopen`)
   return data
 }

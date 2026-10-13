@@ -322,4 +322,106 @@ describe('Gestão de eventos (Fase 2)', () => {
       expect.arrayContaining(['test_event_data', 'event_data_purged'])
     );
   });
+
+  test('T-reset-1: Reset remove tickets e logs mas mantém event_config', async () => {
+    const event = await createEventViaApi('Festival Reset 1');
+    const ticket = await helpers.createTicket({ event_id: event.id, tenant_id: client.id });
+    await helpers.pool.query(
+      `INSERT INTO entry_logs (ticket_id, event_id, tenant_id, entry_type)
+       VALUES ($1, $2, $3, 'qrcode')`,
+      [ticket.id, event.id, client.id]
+    );
+
+    const res = await api()
+      .post(`/api/events/${event.id}/reset-and-reopen`)
+      .set(auth(adminToken));
+    expect(res.status).toBe(200);
+    expect(res.body.new_status).toBe('draft');
+
+    const tickets = await helpers.pool.query(
+      'SELECT COUNT(*)::int AS c FROM tickets WHERE event_id = $1', [event.id]
+    );
+    expect(tickets.rows[0].c).toBe(0);
+    const logs = await helpers.pool.query(
+      'SELECT COUNT(*)::int AS c FROM entry_logs WHERE event_id = $1', [event.id]
+    );
+    expect(logs.rows[0].c).toBe(0);
+    const cfg = await helpers.pool.query(
+      'SELECT COUNT(*)::int AS c FROM event_config WHERE event_id = $1', [event.id]
+    );
+    expect(cfg.rows[0].c).toBe(1);
+    const ev = await helpers.pool.query(
+      'SELECT status FROM events WHERE id = $1', [event.id]
+    );
+    expect(ev.rows[0].status).toBe('draft');
+  });
+
+  test('T-reset-2: Reset limpa timestamps dos portões mas mantém portões', async () => {
+    const event = await createEventViaApi('Festival Reset 2');
+    const gate = await api()
+      .post(`/api/events/${event.id}/gates`)
+      .set(auth(adminToken))
+      .send({ name: 'Portão Reset' });
+    const gateId = gate.body.id;
+    await api()
+      .patch(`/api/events/${event.id}/gates/${gateId}/open`)
+      .set(auth(adminToken));
+
+    const res = await api()
+      .post(`/api/events/${event.id}/reset-and-reopen`)
+      .set(auth(adminToken));
+    expect(res.status).toBe(200);
+
+    const g = await helpers.pool.query(
+      'SELECT opened_at, closed_at FROM gates WHERE id = $1', [gateId]
+    );
+    expect(g.rowCount).toBe(1);
+    expect(g.rows[0].opened_at).toBeNull();
+    expect(g.rows[0].closed_at).toBeNull();
+  });
+
+  test('T-reset-3: Full purge ainda exige evento encerrado', async () => {
+    const event = await createEventViaApi('Festival Reset 3');
+    await api()
+      .patch(`/api/events/${event.id}/status`)
+      .set(auth(adminToken))
+      .send({ status: 'active' });
+
+    const res = await api()
+      .delete(`/api/events/${event.id}/purge`)
+      .set(auth(adminToken))
+      .send({ mode: 'full' });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe('event_not_closed');
+  });
+
+  test('T-reset-4: Reset funciona em evento active (sem encerrar antes)', async () => {
+    const event = await createEventViaApi('Festival Reset 4');
+    const act = await api()
+      .patch(`/api/events/${event.id}/status`)
+      .set(auth(adminToken))
+      .send({ status: 'active' });
+    expect(act.status).toBe(200);
+
+    const res = await api()
+      .post(`/api/events/${event.id}/reset-and-reopen`)
+      .set(auth(adminToken));
+    expect(res.status).toBe(200);
+    expect(res.body.new_status).toBe('draft');
+  });
+
+  test('T-reset-5: Audit log registra modo correto', async () => {
+    const event = await createEventViaApi('Festival Reset 5');
+    await api()
+      .post(`/api/events/${event.id}/reset-and-reopen`)
+      .set(auth(adminToken));
+
+    const rows = await helpers.pool.query(
+      'SELECT action FROM audit_logs WHERE event_id = $1', [event.id]
+    );
+    const actions = rows.rows.map((row) => row.action);
+    expect(actions).toContain('event_data_reset');
+    expect(actions).not.toContain('event_data_purged');
+  });
 });

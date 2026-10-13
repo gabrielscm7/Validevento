@@ -187,13 +187,15 @@ async function share(req, res) {
   }
 }
 
-// DELETE /api/events/:eventId/purge — remove dados operacionais de evento fechado
+// DELETE /api/events/:eventId/purge — remove dados (mode: full | reset)
 async function purge(req, res) {
   try {
+    const mode = req.body?.mode === 'reset' ? 'reset' : 'full';
     const result = await purgeService.purgeEventData(
       req.params.eventId,
       req.tenantId,
-      req.user.id
+      req.user.id,
+      mode
     );
     return res.status(200).json(result);
   } catch (error) {
@@ -201,4 +203,32 @@ async function purge(req, res) {
   }
 }
 
-module.exports = { list, create, getById, update, changeStatus, getActive, share, purge };
+// POST /api/events/:eventId/reset-and-reopen — encerra (se ativo), reseta e volta a draft
+async function resetAndReopen(req, res) {
+  try {
+    const event = req.event;
+
+    // Se o evento está ativo, encerrar primeiro.
+    if (event.status === 'active') {
+      await eventsService.changeEventStatus(event.id, 'closed');
+    }
+
+    const result = await purgeService.purgeEventData(
+      event.id,
+      req.tenantId,
+      req.user.id,
+      'reset'
+    );
+
+    req.params.eventId = event.id;
+    await auditLog(req, 'event_reset_and_reopened', 'event', event.id, {
+      previous_status: event.status,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+module.exports = { list, create, getById, update, changeStatus, getActive, share, purge, resetAndReopen };

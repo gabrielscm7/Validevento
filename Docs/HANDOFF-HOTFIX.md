@@ -48,3 +48,45 @@
   `npm run lint` limpo.
 
 **Commit:** `fix(terminal): remover bloqueio de portão, aceitar gate fechado e corrigir sync offline`
+
+---
+
+## Sessão 2 — Reset de evento e purge
+
+**Status:** DONE
+
+### O que mudou (além do prompt original)
+
+- `backend/src/modules/events/events.purge.js`
+  - `purgeEventData(eventId, tenantId, userId, mode='full')` com dois modos:
+    - `reset`: apaga `entry_logs`, `master_tickets`, `tickets`, `terminals`;
+      limpa timestamps de `gates`; mantém `event_config`, `event_team`,
+      `batches`, `gates`; status final `draft`.
+    - `full`: comportamento original; exige `closed`; status `purged`.
+  - Audit: `event_data_reset` / `event_data_purged`.
+  - **Correção:** removido `updated_at = NOW()` do `UPDATE events`
+    (a tabela `events` não possui a coluna — causava 500).
+- `backend/src/modules/events/events.controller.js`
+  - `purge` lê `req.body?.mode`.
+  - Novo `resetAndReopen`: encerra se `active` via
+    `eventsService.changeEventStatus(id, 'closed')` (o prompt citava um
+    `changeStatus` inexistente) e chama o reset.
+- `backend/src/modules/events/events.routes.js`
+  - `POST /api/events/:eventId/reset-and-reopen` (admin/master + eventAccess).
+- `frontend/src/services/eventsService.js`
+  - `purgeEventData(eventId, mode='full')`; novo `resetAndReopenEvent(eventId)`.
+- `frontend/src/components/PurgeEventModal.jsx`
+  - Abas "Resetar (recomendado)" / "Apagar tudo"; reset exige apenas um
+    clique; full purge exige digitar o nome do evento.
+- `frontend/src/pages/admin/EventDetail.jsx`
+  - Botão "Resetar e reabrir" na barra de ações do evento ativo + modal de
+    confirmação. "Zona de Risco" passou a aparecer para `closed` **e** `draft`.
+
+### Testes
+
+- Backend `events.test.js`: `T-reset-1`..`T-reset-5`.
+- Resultados: backend **96 passed / 14 suítes**; frontend **22 passed**;
+  `npm run lint` limpo.
+
+**Commit:** `feat(events): modo reset que mantém estrutura + botão resetar e reabrir`
+

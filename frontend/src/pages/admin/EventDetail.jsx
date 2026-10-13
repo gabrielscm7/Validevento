@@ -6,7 +6,7 @@ import { Modal, Btn } from '../../components/ui'
 import ImportTicketsModal from '../../components/admin/ImportTicketsModal'
 import EventShareCard from '../../components/EventShareCard'
 import PurgeEventModal from '../../components/PurgeEventModal'
-import { getEvent, changeEventStatus } from '../../services/eventsService'
+import { getEvent, changeEventStatus, resetAndReopenEvent } from '../../services/eventsService'
 import { createInvitation } from '../../services/eventsActionsService'
 import { formatDateTime, formatCPF } from '../../lib/format'
 import { setLastEventId } from '../../lib/lastEvent'
@@ -23,6 +23,7 @@ export default function EventDetail() {
   const [inviteForm, setInviteForm] = useState({ display_name: '', cpf: '' })
   const [inviteResult, setInviteResult] = useState(null)
   const [purgeOpen, setPurgeOpen] = useState(false)
+  const [resetOpen, setResetOpen] = useState(false)
   const navigate = useNavigate()
 
   const load = useCallback(async () => {
@@ -104,6 +105,14 @@ export default function EventDetail() {
             {event?.status === 'active' && (
               <>
                 <Btn variant="blue" onClick={() => navigate(`/supervisor/${event.id}`)}>Abrir dashboard</Btn>
+                <Btn
+                  variant="outline"
+                  style={{ color: 'var(--warning)' }}
+                  onClick={() => setResetOpen(true)}
+                  loading={busy}
+                >
+                  Resetar e reabrir
+                </Btn>
                 <Btn variant="ghost" style={{ color: 'var(--danger)' }} onClick={() => handleStatusChange('closed')} loading={busy}>Encerrar evento</Btn>
               </>
             )}
@@ -234,12 +243,12 @@ export default function EventDetail() {
           </div>
         </div>
 
-        {event?.status === 'closed' && (
+        {(event?.status === 'closed' || event?.status === 'draft') && (
           <section className="card card-pad mt-4" style={{ borderTop: '2px solid var(--danger)' }}>
             <h2 className="card-title" style={{ color: 'var(--danger)' }}>Zona de Risco</h2>
-            <p className="card-sub">Apagar todos os dados operacionais deste evento. Esta ação não pode ser desfeita.</p>
+            <p className="card-sub">Resetar mantém a estrutura. Apagar tudo é irreversível.</p>
             <Btn variant="outline" style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={() => setPurgeOpen(true)}>
-              Apagar dados do evento
+              Resetar / Apagar dados do evento
             </Btn>
           </section>
         )}
@@ -255,6 +264,48 @@ export default function EventDetail() {
               await load()
             }}
           />
+        )}
+
+        {resetOpen && (
+          <Modal
+            open
+            title="Resetar e reabrir evento"
+            onClose={() => setResetOpen(false)}
+            footer={
+              <>
+                <Btn variant="ghost" onClick={() => setResetOpen(false)}>Cancelar</Btn>
+                <Btn
+                  variant="danger"
+                  loading={busy}
+                  onClick={async () => {
+                    setBusy(true)
+                    try {
+                      await resetAndReopenEvent(event.id)
+                      toast.success('Evento resetado e reaberto como rascunho.')
+                      await load()
+                      setResetOpen(false)
+                    } catch (err) {
+                      toast.error(err?.response?.data?.details || 'Erro ao resetar.')
+                    } finally {
+                      setBusy(false)
+                    }
+                  }}
+                >
+                  Confirmar reset
+                </Btn>
+              </>
+            }
+          >
+            <p>
+              Os ingressos e logs de validação serão removidos.
+              A equipe, portões e configurações serão mantidos.
+              O evento voltará para rascunho.
+            </p>
+            <p className="text-sm text-muted mt-2">
+              Use esta opção para corrigir problemas de importação
+              ou reiniciar a operação do evento.
+            </p>
+          </Modal>
         )}
       </div>
     </div>
