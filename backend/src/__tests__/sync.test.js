@@ -1,7 +1,8 @@
 const crypto = require('crypto');
 const helpers = require('./helpers');
 const {
-  api, resetDb, pool, createClient, createUser, createTicket, loginToken, auth,
+  api, resetDb, pool, createClient, createUser, createTicket, addTeamMember,
+  loginToken, auth,
 } = helpers;
 
 const syncService = require('../modules/sync/sync.service');
@@ -10,6 +11,7 @@ describe('Sync offline (Fase 3)', () => {
   let client;
   let adminToken;
   let validatorToken;
+  let validatorId;
 
   beforeAll(async () => {
     await resetDb();
@@ -23,6 +25,7 @@ describe('Sync offline (Fase 3)', () => {
     const validator = await createUser({
       tenant_id: client.id, role: 'validator', cpf: '22200022202', password: 'valid123', email_verified: true,
     });
+    validatorId = validator.id;
     validatorToken = await loginToken(validator.plain_cpf, 'valid123');
   });
 
@@ -41,6 +44,15 @@ describe('Sync offline (Fase 3)', () => {
         capacity: 1000,
       });
     expect(res.status).toBe(201);
+
+    // Evento precisa estar ativo e o validador na equipe (eventAccess)
+    const activate = await api()
+      .patch(`/api/events/${res.body.id}/status`)
+      .set(auth(adminToken))
+      .send({ status: 'active' });
+    expect(activate.status).toBe(200);
+    await addTeamMember(res.body.id, validatorId);
+
     return res.body;
   }
 

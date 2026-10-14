@@ -1,13 +1,15 @@
 const crypto = require('crypto');
 const helpers = require('./helpers');
 const {
-  api, resetDb, createClient, createUser, createTicket, loginToken, auth,
+  api, resetDb, createClient, createUser, createTicket, addTeamMember,
+  loginToken, auth,
 } = helpers;
 
 describe('Reentrada (Fase 2 — reentry_mode)', () => {
   let client;
   let adminToken;
   let validatorToken;
+  let validatorId;
   let eventId;
 
   async function createEventViaApi() {
@@ -22,6 +24,15 @@ describe('Reentrada (Fase 2 — reentry_mode)', () => {
         responsible: ['Admin'],
       });
     expect(res.status).toBe(201);
+
+    // Evento precisa estar ativo e o validador na equipe (eventAccess)
+    const activate = await api()
+      .patch(`/api/events/${res.body.id}/status`)
+      .set(auth(adminToken))
+      .send({ status: 'active' });
+    expect(activate.status).toBe(200);
+    await addTeamMember(res.body.id, validatorId);
+
     return res.body;
   }
 
@@ -71,6 +82,7 @@ describe('Reentrada (Fase 2 — reentry_mode)', () => {
       password: 'valid123',
       email_verified: true,
     });
+    validatorId = validator.id;
     validatorToken = await loginToken(validator.plain_cpf, 'valid123');
 
     const event = await createEventViaApi();

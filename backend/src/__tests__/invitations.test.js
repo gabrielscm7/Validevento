@@ -1,7 +1,8 @@
 const crypto = require('crypto');
 const helpers = require('./helpers');
 const {
-  api, resetDb, createClient, createUser, createTicket, loginToken, auth, pool,
+  api, resetDb, createClient, createUser, createTicket, addTeamMember,
+  loginToken, auth, pool,
 } = helpers;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -10,6 +11,7 @@ describe('Ingressos de emergência (Fase 2)', () => {
   let client;
   let adminToken;
   let validatorToken;
+  let validatorId;
   let eventId;
 
   async function createEventViaApi(name = 'Evento Emergência') {
@@ -24,6 +26,15 @@ describe('Ingressos de emergência (Fase 2)', () => {
         responsible: ['Admin'],
       });
     expect(res.status).toBe(201);
+
+    // Evento precisa estar ativo e o validador na equipe (eventAccess)
+    const activate = await api()
+      .patch(`/api/events/${res.body.id}/status`)
+      .set(auth(adminToken))
+      .send({ status: 'active' });
+    expect(activate.status).toBe(200);
+    await addTeamMember(res.body.id, validatorId);
+
     return res.body;
   }
 
@@ -57,6 +68,7 @@ describe('Ingressos de emergência (Fase 2)', () => {
       password: 'valid123',
       email_verified: true,
     });
+    validatorId = validator.id;
     validatorToken = await loginToken(validator.plain_cpf, 'valid123');
 
     const event = await createEventViaApi();

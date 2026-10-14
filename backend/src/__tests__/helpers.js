@@ -196,6 +196,24 @@ async function createEvent(over = {}) {
   return result.rows[0];
 }
 
+/**
+ * Vincula um usuário à equipe de um evento (event_team).
+ * Idempotente: usa ON CONFLICT para atualizar role_override.
+ */
+async function addTeamMember(eventId, userId, roleOverride = null) {
+  await pool.query(
+    `INSERT INTO event_team (event_id, user_id, role_override)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (event_id, user_id) DO UPDATE SET role_override = EXCLUDED.role_override`,
+    [eventId, userId, roleOverride]
+  );
+}
+
+/** Cria um evento já ativo (status 'active'). */
+async function createActiveEvent(over = {}) {
+  return createEvent({ ...over, status: 'active' });
+}
+
 async function createTicket(over = {}) {
   const result = await pool.query(
     `INSERT INTO tickets (event_id, tenant_id, ticket_code, batch, display_name, status)
@@ -240,7 +258,9 @@ module.exports = {
   createClient,
   createUser,
   createEvent,
+  createActiveEvent,
   createTicket,
+  addTeamMember,
   login,
   loginToken,
   auth,

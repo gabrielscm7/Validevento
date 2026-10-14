@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const helpers = require('./helpers');
 const {
   api, resetDb, createClient, createUser, createEvent, createTicket,
-  loginToken, auth,
+  addTeamMember, loginToken, auth,
 } = helpers;
 
 describe('Validação de QRCode (Parte F / BUG-01)', () => {
@@ -21,7 +21,8 @@ describe('Validação de QRCode (Parte F / BUG-01)', () => {
       password: 'validador123',
       email_verified: true,
     });
-    const event = await createEvent({ tenant_id: client.id });
+    const event = await createEvent({ tenant_id: client.id, status: 'active' });
+    await addTeamMember(event.id, validator.id);
 
     validatorToken = await loginToken(validator.plain_cpf, 'validador123');
     eventId = event.id;
