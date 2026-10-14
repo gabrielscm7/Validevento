@@ -16,6 +16,13 @@ function httpError(status, message, code) {
   return err;
 }
 
+// Política de senha mínima — validada no backend (não confiar só no frontend).
+function assertStrongPassword(password) {
+  if (typeof password !== 'string' || password.length < 8) {
+    throw httpError(422, 'A senha deve ter no mínimo 8 caracteres.', 'weak_password');
+  }
+}
+
 function signToken(user) {
   const payload = {
     id: user.id,
@@ -129,6 +136,8 @@ async function verifyEmail(token, password) {
     throw httpError(400, 'Token de ativação inválido ou expirado.', 'invalid_or_expired_token');
   }
 
+  assertStrongPassword(password);
+
   const passwordHash = await hashPassword(password);
 
   await db.query(
@@ -153,8 +162,8 @@ async function forgotPassword(email) {
   }
 
   const result = await db.query(
-    'SELECT id, name, email FROM users WHERE email = $1',
-    [String(email).toLowerCase().trim()]
+    'SELECT id, name, email FROM users WHERE LOWER(email) = LOWER($1)',
+    [String(email).trim()]
   );
 
   const user = result.rows[0];
@@ -198,6 +207,8 @@ async function resetPassword(token, password) {
     throw httpError(403, 'E-mail ainda não verificado.', 'email_not_verified');
   }
 
+  assertStrongPassword(password);
+
   const passwordHash = await hashPassword(password);
   await db.query(
     `UPDATE users
@@ -220,8 +231,8 @@ async function resendVerification(email) {
   }
 
   const result = await db.query(
-    `SELECT id, name, email, email_verified, active FROM users WHERE email = $1`,
-    [String(email).toLowerCase().trim()]
+    `SELECT id, name, email, email_verified, active FROM users WHERE LOWER(email) = LOWER($1)`,
+    [String(email).trim()]
   );
 
   const user = result.rows[0];

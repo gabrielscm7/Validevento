@@ -209,10 +209,9 @@ async function useMasterTicket({ eventId, tenantId, terminalId, validatorId, ben
         [terminalId, eventId]
       );
       const terminal = terminalRes.rows[0];
-      if (terminal?.gate_id) {
-        if (!terminal.opened_at || terminal.closed_at) {
-          throw apiError(422, 'gate_not_open', 'O portão selecionado está fechado. Escolha outro portão.');
-        }
+      // Ingresso master não bloqueia por portão fechado: segue sem registrar
+      // o portão (mesmo comportamento de validation.service.resolveGate).
+      if (terminal?.gate_id && terminal.opened_at && !terminal.closed_at) {
         gateId = terminal.gate_id;
       }
     }
