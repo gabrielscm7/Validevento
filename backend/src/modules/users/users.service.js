@@ -131,8 +131,20 @@ async function createUser({ tenantId, name, cpf, email, role }) {
   return user;
 }
 
-async function updateUser(id, tenantId, fields) {
-  const allowed = ['name', 'email', 'role', 'active', 'email_verified'];
+async function updateUser(id, tenantId, fields, requesterRole) {
+  // Admin não pode alterar outro admin (RN-08: somente o Master cria/gerencia admins)
+  if (requesterRole === 'admin') {
+    const targetQuery = tenantId
+      ? 'SELECT role FROM users WHERE id = $1 AND tenant_id = $2'
+      : 'SELECT role FROM users WHERE id = $1';
+    const targetParams = tenantId ? [id, tenantId] : [id];
+    const targetRes = await db.query(targetQuery, targetParams);
+    if (targetRes.rowCount > 0 && targetRes.rows[0].role === 'admin') {
+      throw apiError(403, 'profile_edit_forbidden', 'Somente o Master pode editar administradores.');
+    }
+  }
+
+  const allowed = ['name', 'active'];
   const updates = [];
   const params = [];
   let idx = 1;
