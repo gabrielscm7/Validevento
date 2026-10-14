@@ -14,10 +14,8 @@ const syncRoutes       = require('./modules/sync/sync.routes');
 const validationRoutes = require('./modules/validation/validation.routes');
 const dashboardRoutes  = require('./modules/dashboard/dashboard.routes');
 const eventsRoutes     = require('./modules/events/events.routes');
-const adminRoutes      = require('./modules/admin/admin.routes');
 const usersRoutes      = require('./modules/users/users.routes');
 const clientsRoutes    = require('./modules/clients/clients.routes');
-const batchesRoutes    = require('./modules/batches/batches.routes');
 const eventBatchesRoutes = require('./modules/batches/batches.event.routes');
 const eventConfigRoutes  = require('./modules/event-config/event-config.routes');
 const eventTeamRoutes    = require('./modules/event-team/event-team.routes');
@@ -151,10 +149,8 @@ app.use('/api/events',     gatesRoutes);
 app.use('/api/events',     terminalsRoutes.eventsRouter);
 app.use('/api/terminal',   terminalsRoutes.publicRouter);
 app.use('/api/events',     reportsRoutes); // v2: /api/events/:eventId/reports/*
-app.use('/api/admin',      adminRoutes);
 app.use('/api/users',      usersRoutes);
 app.use('/api/clients',    clientsRoutes);
-app.use('/api/batches',    batchesRoutes);
 
 // 404 — Rota não encontrada
 app.use((req, res) => {
