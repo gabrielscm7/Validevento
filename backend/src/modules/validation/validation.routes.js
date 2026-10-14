@@ -2,11 +2,15 @@ const express = require('express');
 const validationController = require('./validation.controller');
 const authMiddleware = require('../../middleware/auth');
 const requireRole = require('../../middleware/roles');
+const { eventAccessFromInput } = require('../../middleware/eventAccess');
 
 const router = express.Router();
 
 // Todas as rotas de validação requerem autenticação (validador, supervisor ou admin)
 router.use(authMiddleware);
+
+// Exige acesso ao evento (tenant + event_team + evento ativo para operadores)
+router.use(eventAccessFromInput);
 
 // GET /api/validation/lookup
 router.get('/lookup', validationController.lookup);

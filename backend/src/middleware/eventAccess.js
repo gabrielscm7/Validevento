@@ -114,4 +114,18 @@ function requireEventRole(...allowedRoles) {
   };
 }
 
-module.exports = { eventAccess, requireEventRole };
+/**
+ * Variante para rotas que não recebem o evento na URL (ex.: /api/validation,
+ * /api/sync), mas informam o event_id no body ou na query. Reaproveita a
+ * lógica de eventAccess injetando params.eventId.
+ */
+async function eventAccessFromInput(req, res, next) {
+  const eventId = (req.body && req.body.event_id) || (req.query && req.query.event_id);
+  if (!eventId || !isValidUUIDv4(eventId)) {
+    return res.status(400).json({ error: 'invalid_event_id', details: 'event_id é obrigatório e deve ser um UUID válido.' });
+  }
+  req.params.eventId = eventId;
+  return eventAccess(req, res, next);
+}
+
+module.exports = { eventAccess, requireEventRole, eventAccessFromInput };
