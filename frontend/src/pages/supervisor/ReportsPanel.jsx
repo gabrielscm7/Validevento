@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import TopBar from '../../components/TopBar'
 import { PageLoader, ErrorNotice, EmptyState } from '../../components/feedback'
 import { Btn } from '../../components/ui'
@@ -78,8 +79,9 @@ export default function ReportsPanel() {
 
   const mdHtml = useMemo(() => {
     if (!md) return ''
-    const result = marked.parse(md)
-    return typeof result === 'string' ? result : ''
+    const parsed = marked.parse(md)
+    const raw = typeof parsed === 'string' ? parsed : ''
+    return DOMPurify.sanitize(raw)
   }, [md])
 
   if (loading) return (<div className="page"><TopBar /><PageLoader /></div>)

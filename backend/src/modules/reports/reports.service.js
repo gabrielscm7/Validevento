@@ -82,8 +82,17 @@ function ymdBR(value) {
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
+/** Escape defensivo para texto inline em Markdown (não confiar apenas no frontend). */
+function escInline(v) {
+  return String(v === undefined || v === null ? '' : v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/`/g, "'");
+}
+
 function mdTable(headers, rows) {
-  const esc = (v) => String(v === undefined || v === null ? '' : v).replace(/\|/g, '/');
+  const esc = (v) => escInline(v).replace(/\|/g, '/');
   const header = `| ${headers.map(esc).join(' | ')} |`;
   const sep = `| ${headers.map(() => '---').join(' | ')} |`;
   const body = rows.map((r) => `| ${r.map(esc).join(' | ')} |`).join('\n');
@@ -204,10 +213,10 @@ async function buildMarkdown(eventId, tenantId) {
   const now = new Date().toLocaleString('pt-BR', { timeZone: BR_TZ });
 
   const lines = [];
-  lines.push(`# Relatório de Evento — ${event.name || DASH}`);
+  lines.push(`# Relatório de Evento — ${escInline(event.name) || DASH}`);
   lines.push('');
   lines.push(
-    `**Data:** ${dateBR(event.date)} | **Local:** ${event.location || DASH} | **Gerado em:** ${now}`
+    `**Data:** ${dateBR(event.date)} | **Local:** ${escInline(event.location) || DASH} | **Gerado em:** ${now}`
   );
   lines.push('');
 
