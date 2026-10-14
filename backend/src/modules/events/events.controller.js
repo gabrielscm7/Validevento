@@ -132,7 +132,7 @@ async function changeStatus(req, res) {
 // GET /api/events/active — rota legada da v1 (terminal). Mantida.
 async function getActive(req, res) {
   try {
-    const event = await eventsService.getActiveEvent();
+    const event = await eventsService.getActiveEvent(req.tenantId);
     if (!event) return res.status(404).json({ error: 'Nenhum evento ativo encontrado.' });
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     return res.status(200).json(event);

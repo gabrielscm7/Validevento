@@ -243,13 +243,14 @@ module.exports = {
   getEventById,
   updateEvent,
   changeEventStatus,
-  getActiveEvent: async () => {
+  getActiveEvent: async (tenantId) => {
     const result = await db.query(
       `SELECT id, name, date, location, capacity
        FROM events
-       WHERE active = true
+       WHERE active = true AND ($1::uuid IS NULL OR tenant_id = $1)
        ORDER BY created_at DESC
-       LIMIT 1`
+       LIMIT 1`,
+      [tenantId || null]
     );
     return result.rows[0] || null;
   },
