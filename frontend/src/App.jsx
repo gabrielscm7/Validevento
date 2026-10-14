@@ -3,6 +3,8 @@ import { useAuthStore } from './store/authStore'
 import { PrivateRoute } from './components/PrivateRoute'
 import { homeForRole } from './lib/roles'
 import ErrorBoundary from './components/ErrorBoundary'
+import ThemeCustomizer from './components/ThemeCustomizer'
+import AppShell from './components/layout/AppShell'
 import NoEventScreen from './pages/NoEvent'
 
 import Login from './pages/Login'
@@ -61,27 +63,30 @@ export default function App() {
         <Route path="/recuperar-senha" element={<ResetPassword />} />
         <Route path="/sem-evento" element={<PrivateRoute><NoEventScreen /></PrivateRoute>} />
 
-        {/* Master */}
-        <Route path="/master" element={<PrivateRoute allowedRoles={['master']}><MasterDashboard /></PrivateRoute>} />
-        <Route path="/master/clientes" element={<PrivateRoute allowedRoles={['master']}><ClientsManager /></PrivateRoute>} />
-        <Route path="/master/clientes/:id" element={<PrivateRoute allowedRoles={['master']}><ClientDetail /></PrivateRoute>} />
+        {/* Área autenticada — layout com menu lateral */}
+        <Route element={<PrivateRoute><AppShell /></PrivateRoute>}>
+          {/* Master */}
+          <Route path="/master" element={<PrivateRoute allowedRoles={['master']}><MasterDashboard /></PrivateRoute>} />
+          <Route path="/master/clientes" element={<PrivateRoute allowedRoles={['master']}><ClientsManager /></PrivateRoute>} />
+          <Route path="/master/clientes/:id" element={<PrivateRoute allowedRoles={['master']}><ClientDetail /></PrivateRoute>} />
 
-        {/* Admin */}
-        <Route path="/admin" element={<PrivateRoute allowedRoles={['admin']}><AdminHome /></PrivateRoute>} />
-        <Route path="/admin/eventos" element={<PrivateRoute allowedRoles={['admin']}><EventsList /></PrivateRoute>} />
-        <Route path="/admin/eventos/novo" element={<PrivateRoute allowedRoles={['admin']}><EventForm /></PrivateRoute>} />
-        <Route path="/admin/eventos/:id" element={<PrivateRoute allowedRoles={['admin']}><EventDetail /></PrivateRoute>} />
-        <Route path="/admin/eventos/:id/editar" element={<PrivateRoute allowedRoles={['admin']}><EventForm /></PrivateRoute>} />
-        <Route path="/admin/eventos/:id/config" element={<PrivateRoute allowedRoles={['admin']}><EventConfig /></PrivateRoute>} />
-        <Route path="/admin/eventos/:id/equipe" element={<PrivateRoute allowedRoles={['admin']}><TeamManager /></PrivateRoute>} />
-        <Route path="/admin/eventos/:id/lotes" element={<PrivateRoute allowedRoles={['admin']}><BatchManager /></PrivateRoute>} />
-        <Route path="/admin/eventos/:id/ingressos" element={<PrivateRoute allowedRoles={['admin']}><TicketsManager /></PrivateRoute>} />
-        <Route path="/admin/usuarios" element={<PrivateRoute allowedRoles={['admin']}><UsersManager /></PrivateRoute>} />
+          {/* Admin */}
+          <Route path="/admin" element={<PrivateRoute allowedRoles={['admin']}><AdminHome /></PrivateRoute>} />
+          <Route path="/admin/eventos" element={<PrivateRoute allowedRoles={['admin']}><EventsList /></PrivateRoute>} />
+          <Route path="/admin/eventos/novo" element={<PrivateRoute allowedRoles={['admin']}><EventForm /></PrivateRoute>} />
+          <Route path="/admin/eventos/:id" element={<PrivateRoute allowedRoles={['admin']}><EventDetail /></PrivateRoute>} />
+          <Route path="/admin/eventos/:id/editar" element={<PrivateRoute allowedRoles={['admin']}><EventForm /></PrivateRoute>} />
+          <Route path="/admin/eventos/:id/config" element={<PrivateRoute allowedRoles={['admin']}><EventConfig /></PrivateRoute>} />
+          <Route path="/admin/eventos/:id/equipe" element={<PrivateRoute allowedRoles={['admin']}><TeamManager /></PrivateRoute>} />
+          <Route path="/admin/eventos/:id/lotes" element={<PrivateRoute allowedRoles={['admin']}><BatchManager /></PrivateRoute>} />
+          <Route path="/admin/eventos/:id/ingressos" element={<PrivateRoute allowedRoles={['admin']}><TicketsManager /></PrivateRoute>} />
+          <Route path="/admin/usuarios" element={<PrivateRoute allowedRoles={['admin']}><UsersManager /></PrivateRoute>} />
 
-        {/* Supervisor */}
-        <Route path="/supervisor/:eventId" element={<PrivateRoute allowedRoles={['supervisor', 'admin']}><EventDashboard /></PrivateRoute>} />
-        <Route path="/supervisor/:eventId/portoes" element={<PrivateRoute allowedRoles={['supervisor', 'admin']}><GatesPanel /></PrivateRoute>} />
-        <Route path="/supervisor/:eventId/relatorio" element={<PrivateRoute allowedRoles={['supervisor', 'admin']}><ReportsPanel /></PrivateRoute>} />
+          {/* Supervisor */}
+          <Route path="/supervisor/:eventId" element={<PrivateRoute allowedRoles={['supervisor', 'admin']}><EventDashboard /></PrivateRoute>} />
+          <Route path="/supervisor/:eventId/portoes" element={<PrivateRoute allowedRoles={['supervisor', 'admin']}><GatesPanel /></PrivateRoute>} />
+          <Route path="/supervisor/:eventId/relatorio" element={<PrivateRoute allowedRoles={['supervisor', 'admin']}><ReportsPanel /></PrivateRoute>} />
+        </Route>
 
         {/* Terminal genérico (acesso público por slug) */}
         <Route path="/terminal/join/:slug" element={<JoinTerminal />} />
@@ -93,6 +98,7 @@ export default function App() {
         {/* Catch-all */}
         <Route path="*" element={<HomeRedirect />} />
       </Routes>
+      <ThemeCustomizer />
     </ErrorBoundary>
   )
 }

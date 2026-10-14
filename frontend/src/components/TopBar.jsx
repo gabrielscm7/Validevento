@@ -1,17 +1,36 @@
-import { useNavigate, Link } from 'react-router-dom'
+import { useLocation, useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import { useUIStore } from '../store/uiStore'
+import { eventIdFromPath } from '../lib/nav'
+import { useCurrentEvent } from '../hooks/useCurrentEvent'
 import Logo from './Logo'
+import Breadcrumbs from './layout/Breadcrumbs'
+import EventTabs from './layout/EventTabs'
+import EventSwitcher from './layout/EventSwitcher'
+import { NavIcon } from './layout/icons'
 import { ROLE_LABEL, initials } from '../lib/format'
 
 /**
- * Barra superior compartilhada por todas as telas (exceto o Terminal).
- * Props:
- *  - eventName / crumb: contexto de evento (breadcrumb)
- *  - logoUrl / bannerUrl? -> eventStore já resolve; aqui aceitamos customLogo
+ * Cabeçalho compartilhado: menu, logo, trilha de navegação e (quando dentro
+ * de um evento) as abas internas. O evento vem do eventStore via
+ * useCurrentEvent.
  */
-export function TopBar({ eventName, crumb, customLogo, onBack }) {
+export function TopBar({ eventName: eventNameProp, crumb, customLogo, onBack }) {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
+  const { openSidebar, toggleCollapsed } = useUIStore()
+  const location = useLocation()
+
+  const eventId = eventIdFromPath(location.pathname)
+  const event = useCurrentEvent(eventId)
+  const eventName = event?.name || eventNameProp
+
+  function handleMenuClick() {
+    const mobile = typeof window !== 'undefined'
+      && window.matchMedia && window.matchMedia('(max-width: 900px)').matches
+    if (mobile) openSidebar()
+    else toggleCollapsed()
+  }
 
   function handleLogout() {
     logout()
@@ -22,6 +41,16 @@ export function TopBar({ eventName, crumb, customLogo, onBack }) {
     <header className="topbar">
       <div className="topbar-inner">
         <div className="topbar-left">
+          <button
+            type="button"
+            className="topbar-menu"
+            onClick={handleMenuClick}
+            aria-label="Alternar menu lateral"
+            title="Menu"
+          >
+            <NavIcon name="menu" size={19} />
+          </button>
+
           {onBack && (
             <button
               type="button"
@@ -40,17 +69,14 @@ export function TopBar({ eventName, crumb, customLogo, onBack }) {
               style={{ height: 34, maxWidth: 150, objectFit: 'contain' }}
             />
           ) : (
-            <Link to="/" aria-label="Validevento">
+            <Link to="/" aria-label="Validevento" className="topbar-home">
               <Logo withText compact />
             </Link>
           )}
 
-          {(eventName || crumb) && (
-            <div className="topbar-context">
-              {eventName && <span className="topbar-event">{eventName}</span>}
-              {crumb && <span className="topbar-crumb">{crumb}</span>}
-            </div>
-          )}
+          <div className="topbar-context">
+            <Breadcrumbs pathname={location.pathname} eventName={eventName} crumb={crumb} />
+          </div>
         </div>
 
         <div className="topbar-right">
@@ -64,15 +90,19 @@ export function TopBar({ eventName, crumb, customLogo, onBack }) {
                 {user?.role ? ROLE_LABEL[user.role] || user.role : ''}
               </span>
             </div>
-            <span className={`role-badge pill ${user?.role || ''} hidden`}>
-              {user?.role ? ROLE_LABEL[user.role] || user.role : ''}
-            </span>
           </div>
           <button type="button" onClick={handleLogout} className="btn-outline btn-sm">
             Sair
           </button>
         </div>
       </div>
+
+      {eventId && (
+        <div className="topbar-subbar">
+          <EventTabs eventId={eventId} role={user?.role} />
+          <EventSwitcher eventId={eventId} eventName={eventName} />
+        </div>
+      )}
     </header>
   )
 }

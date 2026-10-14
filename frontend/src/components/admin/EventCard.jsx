@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { BarChart, Bar, XAxis, ResponsiveContainer } from 'recharts'
 import { formatDateTime } from '../../lib/format'
 import api from '../../services/api'
+import { useAccentColors } from '../../hooks/useAccentColors'
 
 const STATUS_META = {
   draft: { label: 'Rascunho', cls: 'badge-gray' },
@@ -16,6 +17,7 @@ const STATUS_META = {
  */
 export default function EventCard({ event }) {
   const navigate = useNavigate()
+  const { primary } = useAccentColors()
   const meta = STATUS_META[event.status] || STATUS_META.draft
   const occupancyPct = event.capacity
     ? Math.min(100, Math.round(((event.validated_count || 0) / event.capacity) * 100))
@@ -63,7 +65,7 @@ export default function EventCard({ event }) {
             <ResponsiveContainer width="100%" height={48}>
               <BarChart data={flow}>
                 <XAxis dataKey="hour" hide />
-                <Bar dataKey="checkins" fill="#7c4fa0" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="checkins" fill={primary} radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

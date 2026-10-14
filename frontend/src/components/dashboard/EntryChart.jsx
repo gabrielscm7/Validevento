@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import { getDashboardFlow } from '../../services/dashboardService'
+import { useAccentColors } from '../../hooks/useAccentColors'
+import { withAlpha } from '../../lib/color'
 
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
@@ -17,6 +19,7 @@ function CustomTooltip({ active, payload, label }) {
 }
 
 export function EntryChart({ data, eventId, loading }) {
+  const { primary, secondary } = useAccentColors()
   const [internalData, setInternalData] = useState(data || null)
   const [internalLoading, setInternalLoading] = useState(loading)
 
@@ -56,9 +59,9 @@ export function EntryChart({ data, eventId, loading }) {
             <BarChart data={chartData}>
               <XAxis dataKey="hour" tick={{ fill: 'var(--vv-gray)', fontSize: 11 }} axisLine={{ stroke: 'var(--border)' }} tickLine={false} />
               <YAxis allowDecimals={false} tick={{ fill: 'var(--vv-gray)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--vv-purple-light)' }} />
-              <Bar dataKey="checkins" name="Entradas" fill="#4A2368" radius={[4, 4, 0, 0]} />
-              {hasCheckout && <Bar dataKey="checkouts" name="Saídas" fill="#2E516B" radius={[4, 4, 0, 0]} />}
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: withAlpha(primary, 0.12) }} />
+              <Bar dataKey="checkins" name="Entradas" fill={primary} radius={[4, 4, 0, 0]} />
+              {hasCheckout && <Bar dataKey="checkouts" name="Saídas" fill={secondary} radius={[4, 4, 0, 0]} />}
             </BarChart>
           </ResponsiveContainer>
         </div>

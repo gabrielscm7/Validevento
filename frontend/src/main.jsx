@@ -3,6 +3,11 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
 import './index.css'
+import '@fontsource-variable/geist'
+
+import { bootstrapTheme } from './store/themeStore'
+
+bootstrapTheme()
 
 // Restauração da sessão: zustand persist reidrata user/token. Se houver token
 // sem usuário, busca /api/auth/me para validar (o interceptor do axios limpa
