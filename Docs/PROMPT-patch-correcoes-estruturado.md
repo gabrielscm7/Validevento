@@ -75,7 +75,7 @@ JWT_SECRET=
 CPF_LOOKUP_SALT=
 
 # URL do frontend em produção (nunca usar * em produção)
-CORS_ORIGIN=https://seu-frontend.vercel.app
+CORS_ORIGIN=https://www.validevento.com.br
 ```
 
 ### CORREÇÃO 1.2 — resetPassword não seleciona email_token_exp (auth.service.js)
@@ -352,7 +352,7 @@ T-legacy-2: Dashboard de evento legado retorna 200
 Após as duas sessões:
 
 - [ ] `npm test` — 100% passando (backend)
-- [ ] Migration 007 aplicada no Supabase de produção
+- [ ] Migration 007 aplicada no Postgres de produção (Railway)
 - [ ] Variáveis `JWT_SECRET` e `CPF_LOOKUP_SALT` confirmadas
       no Railway (Settings → Variables)
 - [ ] Testar manualmente: login com CPF, reset de senha,

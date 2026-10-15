@@ -39,7 +39,7 @@ em dashboard em tempo real; Supervisor opera portões, relatórios e o evento.
 | marked / qrcode.react | relatório MD + QRCode |
 | Vite PWA plugin | 1.3 |
 | Workbox | 7.4 |
-| **Estilo** | **CSS custom + tokens `--vv-*` (SEM Tailwind no frontend novo)** |
+| **Estilo** | **CSS custom + tokens `--vv-*` + Tailwind CSS** |
 
 ### Infra (produção real)
 | Serviço | Função |
@@ -110,7 +110,7 @@ em dashboard em tempo real; Supervisor opera portões, relatórios e o evento.
 
 **Frontend — v2 completo (Fase 4):**
 - Identidade "VALIDE/VENTO" (paleta `#4A2368`/`#2E516B`, Montserrat + Inter),
-  tokens `--vv-*`, CSS custom (sem Tailwind).
+  tokens `--vv-*`, CSS custom + Tailwind CSS.
 - Login por CPF, ativação de conta (`/ativar`), recuperação (`/recuperar-senha`),
   rotas por perfil: Master (`/master/*`), Admin (`/admin/*`),
   Supervisor (`/supervisor/:eventId/*`), Terminal PWA (`/terminal/:eventId`).

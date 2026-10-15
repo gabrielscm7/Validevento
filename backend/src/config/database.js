@@ -5,9 +5,9 @@ const isProduction = env.nodeEnv === 'production';
 
 const pool = new Pool({
   connectionString: env.databaseUrl,
-  // O Supabase requer SSL em produção
+  // O Railway Postgres exige SSL em produção
   ssl: isProduction ? { rejectUnauthorized: false } : false,
-  max: 20, // máximo de clientes no pool
+  max: env.databasePoolMax, // máximo de clientes no pool (DATABASE_POOL_MAX)
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });

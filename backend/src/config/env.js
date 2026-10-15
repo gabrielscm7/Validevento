@@ -25,10 +25,14 @@ if (nodeEnv !== 'production' && !process.env.JWT_SECRET) {
   );
 }
 
+// Pool de conexões: configurável via DATABASE_POOL_MAX (default 20).
+const poolMax = parseInt(process.env.DATABASE_POOL_MAX || '20', 10);
+
 module.exports = {
   nodeEnv,
   port: parseInt(process.env.PORT || '3000', 10),
   databaseUrl: process.env.DATABASE_URL,
+  databasePoolMax: Number.isFinite(poolMax) && poolMax > 0 ? poolMax : 20,
   jwtSecret: process.env.JWT_SECRET || '',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '24h',
   // Em desenvolvimento o fallback '*' é aceitável; em produção exige CORS_ORIGIN explícito.

@@ -1,9 +1,9 @@
 # Spec Técnica — Validevento v2.0
 ## Technical Specification v2.0
 
-**Data:** Setembro 2026
+**Data:** Outubro 2026
 **Referência:** PRD-validevento-v2.md
-**Infraestrutura:** Railway Hobby + Vercel Free + Supabase Free + Resend Free
+**Infraestrutura:** Railway (backend + frontend + Postgres) + Cloudflare + Resend
 
 ---
 
@@ -30,7 +30,7 @@ corrigidos como parte obrigatória da implementação da v2.
 |---|---|---|
 | Node.js | 20 | Runtime do backend |
 | Express | 4 | Framework HTTP |
-| PostgreSQL | 15 | Banco de dados (Supabase) |
+| PostgreSQL | 15 | Banco de dados (Railway Postgres) |
 | React | 19 | Frontend |
 | Vite | 8 | Build do frontend |
 | Tailwind CSS | 3 | Estilização |
@@ -887,7 +887,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 async function sendActivationEmail(to, name, token) {
   const link = `${process.env.FRONTEND_URL}/ativar?token=${token}`;
   await resend.emails.send({
-    from: 'Validevento <noreply@seudominio.com>',
+    from: 'Validevento <noreply@validevento.com.br>',
     to,
     subject: 'Ative seu acesso — Validevento',
     html: `
@@ -973,7 +973,7 @@ app.use(cors({
 
 ```bash
 # backend/.env — produção
-CORS_ORIGIN=https://seu-frontend.vercel.app
+CORS_ORIGIN=https://www.validevento.com.br
 ```
 
 ### BUG-03 — Validação de MIME type rejeita arquivos válidos
@@ -1065,7 +1065,7 @@ app.get('/health', (req, res) => {
 ### Configuração no cron-job.org
 
 ```
-URL:       https://seu-backend.railway.app/health
+URL:       https://api.validevento.com.br/health
 Método:    GET
 Intervalo: A cada 5 minutos
 Ativo:     Sempre (ou por agendamento no dia do evento)
@@ -1079,16 +1079,16 @@ Ativo:     Sempre (ou por agendamento no dia do evento)
 # backend/.env
 NODE_ENV=production
 PORT=3000
-DATABASE_URL=postgresql://...supabase...
+DATABASE_URL=postgresql://...railway...
 JWT_SECRET=string-256-bits-aleatorio
 JWT_EXPIRES_IN=24h
-CORS_ORIGIN=https://seu-frontend.vercel.app   # nunca '*'
+CORS_ORIGIN=https://www.validevento.com.br   # nunca '*'
 RESEND_API_KEY=re_xxxxxxxx
 CPF_LOOKUP_SALT=string-aleatoria-fixa-por-sistema
-FRONTEND_URL=https://seu-frontend.vercel.app
+FRONTEND_URL=https://www.validevento.com.br
 
 # frontend/.env
-VITE_API_URL=https://seu-backend.railway.app
+VITE_API_URL=https://api.validevento.com.br
 VITE_EVENT_ID=                                # opcional
 ```
 
@@ -1152,5 +1152,5 @@ Fase 4 — Relatórios e auditoria
 Fase 5 — Deploy e testes
   20. Keep-alive /health + cron-job.org
   21. Testes T-01 a T-18
-  22. Deploy Vercel (frontend) + Railway (backend)
+  22. Deploy Railway (frontend + backend) + Cloudflare (DNS/CDN)
 ```
