@@ -186,19 +186,17 @@ export default function ClientDetail() {
                 >
                   Abrir
                 </button>
-                {(e.status === 'closed' || e.status === 'purged') && (
-                  <button
-                    type="button"
-                    className="btn-icon btn-ghost"
-                    disabled={e.status === 'purged'}
-                    title={e.status === 'purged' ? 'Dados já apagados' : 'Apagar dados do evento'}
-                    onClick={() => e.status === 'closed' && setPurgeEvent(e)}
-                    aria-label={e.status === 'purged' ? 'Dados já apagados' : `Apagar dados de ${e.name}`}
-                    style={{ color: e.status === 'purged' ? 'var(--text-muted)' : 'var(--danger)' }}
-                  >
-                    🗑
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="btn-icon btn-ghost"
+                  disabled={e.status === 'purged'}
+                  title={e.status === 'purged' ? 'Dados já apagados' : 'Apagar dados do evento'}
+                  onClick={() => e.status !== 'purged' && setPurgeEvent(e)}
+                  aria-label={e.status === 'purged' ? 'Dados já apagados' : `Apagar dados de ${e.name}`}
+                  style={{ color: e.status === 'purged' ? 'var(--text-muted)' : 'var(--danger)' }}
+                >
+                  🗑
+                </button>
               </div>
             ))}
             {(!events || events.length === 0) && (

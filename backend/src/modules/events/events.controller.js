@@ -195,7 +195,8 @@ async function purge(req, res) {
       req.params.eventId,
       req.tenantId,
       req.user.id,
-      mode
+      mode,
+      req.user.role
     );
     return res.status(200).json(result);
   } catch (error) {

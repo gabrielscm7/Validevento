@@ -8,6 +8,7 @@ import EventShareCard from '../../components/EventShareCard'
 import PurgeEventModal from '../../components/PurgeEventModal'
 import { getEvent, changeEventStatus, resetAndReopenEvent, listTerminals, createGenericTerminal } from '../../services/eventsService'
 import { createInvitation } from '../../services/eventsActionsService'
+import { useAuthStore } from '../../store/authStore'
 import { formatDateTime, formatCPF } from '../../lib/format'
 import { setLastEventId } from '../../lib/lastEvent'
 import { toast } from 'sonner'
@@ -28,6 +29,7 @@ export default function EventDetail() {
   const [genericModal, setGenericModal] = useState(false)
   const [genericName, setGenericName] = useState('')
   const navigate = useNavigate()
+  const isMaster = useAuthStore((s) => s.user?.role) === 'master'
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -295,7 +297,8 @@ export default function EventDetail() {
           })}
         </div>
 
-        {(event?.status === 'closed' || event?.status === 'draft') && (
+        {event?.status !== 'purged'
+          && (isMaster || event?.status === 'closed' || event?.status === 'draft') && (
           <section className="card card-pad mt-4" style={{ borderTop: '2px solid var(--danger)' }}>
             <h2 className="card-title" style={{ color: 'var(--danger)' }}>Zona de Risco</h2>
             <p className="card-sub">Resetar mantém a estrutura. Apagar tudo é irreversível.</p>

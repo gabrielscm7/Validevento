@@ -16,8 +16,12 @@ function purgeError(status, message, code) {
  *  - 'reset'          — apaga apenas dados operacionais e mantém a estrutura
  *                        (config, equipe, portões, nome/data/local); volta
  *                        para 'draft'. Permitido em eventos ativos ou encerrados.
+ *
+ * userRole:
+ *  - 'master' ignora a exigência de evento encerrado no full purge, podendo
+ *    apagar eventos em qualquer status (draft/active/closed).
  */
-async function purgeEventData(eventId, tenantId, userId, mode = 'full') {
+async function purgeEventData(eventId, tenantId, userId, mode = 'full', userRole = null) {
   const eventRes = await db.query(
     'SELECT id, name, status, tenant_id FROM events WHERE id = $1',
     [eventId]
@@ -32,7 +36,9 @@ async function purgeEventData(eventId, tenantId, userId, mode = 'full') {
   }
 
   // Full purge exige evento encerrado; reset pode rodar em ativo/encerrado.
-  if (mode === 'full' && event.status !== 'closed') {
+  // O master tem poder total de exclusão e ignora essa restrição.
+  const isMaster = userRole === 'master';
+  if (mode === 'full' && event.status !== 'closed' && !isMaster) {
     throw purgeError(
       422,
       'Apenas eventos encerrados podem ter todos os dados apagados. ' +

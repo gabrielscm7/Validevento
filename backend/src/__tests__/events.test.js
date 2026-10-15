@@ -7,6 +7,7 @@ describe('Gestão de eventos (Fase 2)', () => {
   let client;
   let adminToken;
   let adminId;
+  let masterToken;
   let eventId;
 
   beforeAll(async () => {
@@ -22,6 +23,14 @@ describe('Gestão de eventos (Fase 2)', () => {
     });
     adminId = admin.id;
     adminToken = await loginToken(admin.plain_cpf, 'admin123');
+
+    const master = await createUser({
+      role: 'master',
+      cpf: '10101010101',
+      password: 'master123',
+      email_verified: true,
+    });
+    masterToken = await loginToken(master.plain_cpf, 'master123');
   });
 
   afterAll(async () => {
@@ -423,5 +432,64 @@ describe('Gestão de eventos (Fase 2)', () => {
     const actions = rows.rows.map((row) => row.action);
     expect(actions).toContain('event_data_reset');
     expect(actions).not.toContain('event_data_purged');
+  });
+
+  test('T-reset-6: Admin não pode full purge de evento em draft', async () => {
+    const event = await createEventViaApi('Festival Reset 6');
+    expect(event.status).toBe('draft');
+
+    const res = await api()
+      .delete(`/api/events/${event.id}/purge`)
+      .set(auth(adminToken))
+      .send({ mode: 'full' });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe('event_not_closed');
+  });
+
+  test('T-reset-7: Master pode full purge de evento em draft', async () => {
+    const event = await createEventViaApi('Festival Reset 7');
+    expect(event.status).toBe('draft');
+
+    const res = await api()
+      .delete(`/api/events/${event.id}/purge`)
+      .set(auth(masterToken))
+      .set('X-Tenant-Id', client.id)
+      .send({ mode: 'full' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.new_status).toBe('purged');
+
+    const row = await helpers.pool.query('SELECT status FROM events WHERE id = $1', [event.id]);
+    expect(row.rows[0].status).toBe('purged');
+  });
+
+  test('T-reset-8: Master pode full purge de evento active', async () => {
+    const event = await createEventViaApi('Festival Reset 8');
+    await api()
+      .patch(`/api/events/${event.id}/status`)
+      .set(auth(adminToken))
+      .send({ status: 'active' });
+
+    const res = await api()
+      .delete(`/api/events/${event.id}/purge`)
+      .set(auth(masterToken))
+      .set('X-Tenant-Id', client.id)
+      .send({ mode: 'full' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.new_status).toBe('purged');
+  });
+
+  test('T-reset-9: Master sem cliente selecionado não purga (403)', async () => {
+    const event = await createEventViaApi('Festival Reset 9');
+
+    const res = await api()
+      .delete(`/api/events/${event.id}/purge`)
+      .set(auth(masterToken))
+      .send({ mode: 'full' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('tenant_context_required');
   });
 });
