@@ -1,5 +1,70 @@
 # Changelog — Validevento
 
+## v2.5.0 — Acesso e controle total do Master (2026-10-15)
+
+### Resumo
+
+Habilita o **Master** a visualizar e **editar** usuários e eventos de qualquer
+cliente diretamente pela interface. O backend já autorizava o master (papel
+global), mas o frontend restringia as telas de edição ao perfil `admin` e a
+`ClientDetail` era somente leitura — na prática o master não conseguia fazer a
+manutenção do sistema antes/durante/após os eventos.
+
+### 🧭 Motivação (necessidade)
+
+- O master é o responsável pela **manutenção da plataforma** (suporte, correção
+  de importação, reabertura de evento, gestão de acessos) em qualquer cliente.
+- Antes: as rotas `/admin/*` usavam `allowedRoles={['admin']}`, então o master
+  era **redirecionado** para `/master` ao tentar acessá-las. A aba de eventos/
+  usuários do cliente só exibia listas — sem ações de edição.
+- A API já concedia acesso global (`eventAccess.js` → `role === 'master'`;
+  `users.routes` → `admin, master`). A lacuna era **exclusivamente de UI/fluxo**.
+
+### 🔓 Acesso
+
+- **Rotas** (`frontend/src/App.jsx`): `/admin/**`, `/supervisor/**` e
+  `/terminal/:eventId` agora incluem `master` em `allowedRoles`.
+- **Backend** (`backend/src/modules/import/import.routes.js`): importação de
+  ingressos (`POST /api/import/csv`) passa a aceitar `admin` **e** `master`
+  (era o único endpoint que bloqueava o master). Dados continuam isolados: o
+  import usa o `tenant_id` do evento; master não fornece tenant.
+
+### 🌐 Contexto de cliente (tenant) para o master
+
+Como o master não pertence a um tenant (`tenant_id` nulo no JWT), foi criado um
+"cliente em operação":
+
+- `frontend/src/store/scopeStore.js` (novo): guarda o cliente selecionado
+  (persistido) e expõe `useActiveTenantId()` — retorna o tenant só para master.
+- `frontend/src/components/master/TenantSelect.jsx` (novo): seletor de cliente
+  exibido no topo das telas de admin quando o usuário é master.
+- `frontend/src/lib/nav.js`: o master ganha os itens **Eventos** e **Usuários**
+  e a seção do evento (Configurações/Equipe/Lotes/Ingressos).
+
+### 🖥️ Telas ajustadas
+
+- `UsersManager`: lista/cria/edita no tenant selecionado; master pode criar
+  **Administrador**; cotas só aparecem com cliente definido.
+- `EventsList` / `AdminHome` / `EventForm`: listam e criam eventos no escopo do
+  cliente; criação exige cliente selecionado (`tenant_id` no payload).
+- `TeamManager`: candidatos limitados ao tenant **do evento** (evita misturar
+  usuários de outros clientes).
+- `ClientDetail`: botões **Gerenciar eventos**, **Gerenciar usuários** e
+  **Abrir** evento — entram já no contexto daquele cliente.
+- `EventDashboard`: master pode ativar o evento.
+- `Sidebar`: limpa o contexto de cliente no logout.
+
+### ✅ Verificação
+
+- Backend **117/117** (`npm test`); Frontend **41/41** (`npm test`), `lint` 0,
+  `build` OK.
+
+### 📄 Documentação
+
+- `Docs/ACESSO-MASTER.md` — modelo de permissão, fluxo e arquivos.
+
+---
+
 ## v2.4.2 — Smoke test completo aprovado · P7 DONE (2026-09-07)
 
 ### Resumo
