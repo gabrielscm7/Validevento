@@ -12,6 +12,7 @@ import {
   getTicketByCode,
   getPendingLogs,
   markLogsSynced,
+  getPendingUndos,
 } from './localDB'
 
 const SYNC_INTERVAL_MS = 30 * 1000 // 30 segundos
@@ -31,6 +32,38 @@ function toServerLog(l) {
     is_duplicate: l.is_duplicate === true,
     checkout_at: l.checkout_at || undefined,
     created_at: l.created_at,
+  }
+}
+
+/**
+ * Reenvia ao servidor os "desfazer" (undo) que ficaram pendentes offline.
+ * Sucessos e respostas definitivas (4xx) removem o item da fila; apenas
+ * falhas de rede mantêm o item para a próxima tentativa.
+ */
+async function processPendingUndos(eventId, terminalId, genericBase) {
+  const pending = await getPendingUndos()
+  if (!pending || pending.length === 0) return
+
+  const remaining = []
+  for (const item of pending) {
+    try {
+      if (genericBase) {
+        await api.post(`${genericBase}/undo`, { ticket_code: item.ticket_code })
+      } else {
+        await api.post('/api/validation/undo', {
+          ticket_code: item.ticket_code,
+          event_id: eventId,
+          terminal_id: terminalId || undefined,
+        })
+      }
+    } catch (err) {
+      // Falha de rede (sem resposta) → mantém para tentar de novo.
+      // Resposta definitiva do servidor (ex.: janela expirada) → descarta.
+      if (!err?.response) remaining.push(item)
+    }
+  }
+  if (remaining.length !== pending.length) {
+    await saveMeta('pending_undos', remaining)
   }
 }
 
@@ -92,6 +125,9 @@ export async function syncWithServer() {
         console.warn('Falha ao enviar logs offline:', e?.message || e)
       }
     }
+
+    // 2b. Reenviar desfazer (undo) pendentes
+    await processPendingUndos(eventId, terminalId, genericBase)
 
     // 3. Snapshot incremental
     const lastSync = await getLastSync()

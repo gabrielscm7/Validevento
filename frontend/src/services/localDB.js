@@ -122,6 +122,57 @@ export async function markLogsSynced(ids) {
   return ids.length
 }
 
+/** Retorna o último entry_log (não revertido) de um ticket_code. */
+export async function getLatestEntryLog(ticketCode) {
+  if (!ticketCode) return null
+  const code = String(ticketCode).trim().toLowerCase()
+  const rows = await db.entry_logs
+    .filter((l) => l.ticket_code && String(l.ticket_code).toLowerCase() === code && !l.reversed)
+    .toArray()
+  if (rows.length === 0) return null
+  rows.sort((a, b) => {
+    const ta = new Date(a.created_at || 0).getTime()
+    const tb = new Date(b.created_at || 0).getTime()
+    if (ta !== tb) return tb - ta
+    return (b.id || 0) - (a.id || 0)
+  })
+  return rows[0]
+}
+
+/** Conta quantos entry_logs não revertidos um ticket possui. */
+export async function countActiveEntryLogs(ticketCode) {
+  if (!ticketCode) return 0
+  const code = String(ticketCode).trim().toLowerCase()
+  return db.entry_logs
+    .filter((l) => l.ticket_code && String(l.ticket_code).toLowerCase() === code && !l.reversed)
+    .count()
+}
+
+/** Marca um entry_log local como revertido. */
+export async function markEntryLogReversed(id, reversedAt = new Date().toISOString()) {
+  if (!id) return 0
+  return db.entry_logs.update(id, { reversed: 1, reversed_at: reversedAt })
+}
+
+/** Fila de desfazer (undo) pendentes de sincronização com o servidor. */
+export async function queuePendingUndo(entry) {
+  const list = (await getMeta('pending_undos')) || []
+  list.push({ ...entry, queued_at: new Date().toISOString() })
+  await saveMeta('pending_undos', list)
+  return list
+}
+
+export async function getPendingUndos() {
+  return (await getMeta('pending_undos')) || []
+}
+
+export async function removePendingUndo(ticketCode) {
+  const list = (await getMeta('pending_undos')) || []
+  const filtered = list.filter((u) => u.ticket_code !== ticketCode)
+  await saveMeta('pending_undos', filtered)
+  return filtered
+}
+
 // ────────────────────────────────────────────────
 // Limpeza
 // ────────────────────────────────────────────────

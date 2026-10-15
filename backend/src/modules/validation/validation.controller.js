@@ -110,6 +110,42 @@ async function checkout(req, res) {
   }
 }
 
+// POST /api/validation/undo
+async function undo(req, res) {
+  try {
+    const { ticket_code, event_id, terminal_id } = req.body;
+
+    if (!ticket_code || !event_id) {
+      return res.status(400).json({ error: 'Parâmetros ticket_code e event_id são obrigatórios.' });
+    }
+    if (!requireValidEventId(event_id, res)) return;
+
+    const result = await validationService.undoValidation({
+      eventId: event_id,
+      terminalId: terminal_id,
+      reversedBy: req.user.id,
+      ticketCode: ticket_code,
+      tenantId: req.tenantId,
+    });
+
+    if (result.error) {
+      const statusMap = {
+        not_found: 404,
+        nothing_to_undo: 422,
+        already_checked_out: 422,
+        undo_window_expired: 422,
+        not_undoable_by_terminal: 403,
+      };
+      return res.status(statusMap[result.error] || 422).json({ error: result.error });
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Erro ao desfazer validação:', error.message);
+    return sendError(res, error);
+  }
+}
+
 // POST /api/validation/master
 async function useMaster(req, res) {
   try {
@@ -161,6 +197,7 @@ module.exports = {
   validateQRCode,
   validateManual,
   checkout,
+  undo,
   useMaster,
   search,
 };

@@ -361,6 +361,35 @@ async function master(req, res) {
   }
 }
 
+async function undo(req, res) {
+  try {
+    const { ticket_code } = req.body || {};
+    if (!ticket_code) {
+      return res.status(400).json({ error: 'Parâmetro ticket_code é obrigatório.' });
+    }
+    const result = await validationService.undoValidation({
+      eventId: req.genericTerminal.eventId,
+      terminalId: req.genericTerminal.terminalId,
+      reversedBy: null,
+      ticketCode: ticket_code,
+      tenantId: req.genericTerminal.tenantId,
+    });
+    if (result.error) {
+      const statusMap = {
+        not_found: 404,
+        nothing_to_undo: 422,
+        already_checked_out: 422,
+        undo_window_expired: 422,
+        not_undoable_by_terminal: 403,
+      };
+      return res.status(statusMap[result.error] || 422).json({ error: result.error });
+    }
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
 module.exports = {
   resolveGenericTerminal,
   createGeneric,
@@ -381,5 +410,6 @@ module.exports = {
   qrcode,
   manual,
   checkout,
+  undo,
   master,
 };

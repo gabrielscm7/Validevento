@@ -63,6 +63,7 @@ publicRouter.get('/:slug/search', bySlug, terminalsController.search);
 publicRouter.post('/:slug/qrcode', bySlug, terminalsController.qrcode);
 publicRouter.post('/:slug/manual', bySlug, terminalsController.manual);
 publicRouter.post('/:slug/checkout', bySlug, terminalsController.checkout);
+publicRouter.post('/:slug/undo', bySlug, terminalsController.undo);
 publicRouter.post('/:slug/master', bySlug, terminalsController.master);
 
 module.exports = { eventsRouter, publicRouter };

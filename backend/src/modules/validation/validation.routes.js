@@ -21,6 +21,9 @@ router.post('/qrcode', validationController.validateQRCode);
 // POST /api/validation/manual
 router.post('/manual', validationController.validateManual);
 
+// POST /api/validation/undo — desfaz a última validação (validador/supervisor/admin)
+router.post('/undo', requireRole('validator', 'supervisor', 'admin', 'master'), validationController.undo);
+
 // POST /api/validation/checkout — validador/supervisor/admin
 router.post('/checkout', requireRole('validator', 'supervisor', 'admin', 'master'), validationController.checkout);
 

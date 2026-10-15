@@ -12,6 +12,7 @@ import { ScannerSettings } from '../../components/ScannerSettings'
 import { useExternalScanner } from '../../hooks/useExternalScanner'
 import { SearchPanel } from '../../components/SearchPanel'
 import { ValidationResult } from '../../components/ValidationResult'
+import { ValidationConfirm } from '../../components/ValidationConfirm'
 import { SyncStatus } from '../../components/SyncStatus'
 import { MasterTicketModal } from '../../components/MasterTicketModal'
 import { MasterTicketButton } from '../../components/MasterTicketButton'
@@ -23,6 +24,24 @@ import { isValidUUIDv4 } from '../../lib/uuid'
 const DEFAULT_CONFIG = {
   checkout_enabled: false,
   master_ticket_enabled: false,
+}
+
+const SCANNER_SOURCE_KEY = 've_scanner_source'
+const SOUND_KEY = 've_sound_enabled'
+
+function readPref(key, fallback) {
+  try {
+    if (typeof window === 'undefined') return fallback
+    return window.localStorage.getItem(key) ?? fallback
+  } catch {
+    return fallback
+  }
+}
+
+function writePref(key, value) {
+  try {
+    if (typeof window !== 'undefined') window.localStorage.setItem(key, value)
+  } catch { /* ignore */ }
 }
 
 export default function Terminal() {
@@ -37,7 +56,7 @@ export default function Terminal() {
   const eventId = eventIdParam || storeEventId || import.meta.env.VITE_EVENT_ID || null
   const gateName = useTerminalStore((s) => s.gateName)
   const gateOpen = useTerminalStore((s) => s.gateOpen)
-  const { validateTicket, checkoutTicket, validateManual } = useValidation()
+  const { validateTicket, checkoutTicket, validateManual, undoTicket, lookupTicketCode } = useValidation()
 
   const [eventName, setEventName] = useState('Evento')
   const [config, setConfig] = useState(DEFAULT_CONFIG)
@@ -47,11 +66,28 @@ export default function Terminal() {
   const [showSearch, setShowSearch] = useState(false)
   const [showMaster, setShowMaster] = useState(false)
   const [result, setResult] = useState(null)
+  const [pending, setPending] = useState(null) // { code, info, mode }
+  const [busy, setBusy] = useState(false)
+  const [lastUndo, setLastUndo] = useState(null) // último ingresso validável para desfazer
   const [syncing, setSyncing] = useState(false)
   const [gates, setGates] = useState([])
   const [showGatePicker, setShowGatePicker] = useState(false)
-  const [scannerSource, setScannerSource] = useState('auto')
+  const [scannerSource, setScannerSourceState] = useState(() => readPref(SCANNER_SOURCE_KEY, 'auto'))
+  const [soundEnabled, setSoundEnabledState] = useState(() => readPref(SOUND_KEY, '1') !== '0')
   const lockRef = useRef(false)
+
+  const setScannerSource = useCallback((value) => {
+    setScannerSourceState(value)
+    writePref(SCANNER_SOURCE_KEY, value)
+  }, [])
+
+  const toggleSound = useCallback(() => {
+    setSoundEnabledState((prev) => {
+      const next = !prev
+      writePref(SOUND_KEY, next ? '1' : '0')
+      return next
+    })
+  }, [])
 
   const refreshFromLocal = useCallback(async () => {
     const cfg = (await getMeta('event_config')) || DEFAULT_CONFIG
@@ -158,38 +194,102 @@ export default function Terminal() {
     }
   }, [])
 
+  // Leitura de QR/USB: congela o scanner e abre a tela de confirmação.
   const handleScan = useCallback(async (text) => {
-    if (!text || lockRef.current || !scanReady) return
+    if (!text || lockRef.current || !scanReady || pending || result) return
     lockRef.current = true
+    setScanReady(false)
     try {
-      const res = mode === 'checkout' && config.checkout_enabled
-        ? await checkoutTicket(text)
-        : await validateTicket(text)
-      setLastResult(res)
-      setResult(res)
+      const info = await lookupTicketCode(text)
+      if (!info || info.status === 'not_found') {
+        setResult({ status: 'not_found', ticket_code: text })
+        return
+      }
+      if (info.status === 'error') {
+        setResult({ status: 'error', reason: info.reason })
+        return
+      }
+      setPending({ code: text, info })
     } finally {
-      // pequeno delay para não reler o mesmo código imediatamente
-      setTimeout(() => { lockRef.current = false }, 2200)
+      setTimeout(() => { lockRef.current = false }, 600)
     }
-  }, [mode, config.checkout_enabled, scanReady, checkoutTicket, validateTicket, setLastResult])
+  }, [scanReady, pending, result, lookupTicketCode])
 
-  // Scanner USB (HID): lê código + Enter e dispara a mesma validação.
-  useExternalScanner({
+  // Scanner USB (HID): lê código + Enter e dispara o mesmo fluxo.
+  const { isScannerInput } = useExternalScanner({
     onScan: handleScan,
-    enabled: scannerSource !== 'camera' && scanReady,
+    enabled: scannerSource !== 'camera' && scanReady && !pending && !result,
   })
 
-  const handleManualConfirm = useCallback(async (item) => {
+  // Auto-detecção: ao perceber um leitor USB (teclado rápido), desliga a
+  // câmera automaticamente e passa a operar apenas pelo leitor físico.
+  useEffect(() => {
+    if (scannerSource === 'auto' && isScannerInput) setScannerSource('usb')
+  }, [isScannerInput, scannerSource, setScannerSource])
+
+  const handleManualConfirm = useCallback((item) => {
     setShowSearch(false)
-    const res = await validateManual(item.ticket_id || item.id)
-    setLastResult(res)
-    setResult(res)
-  }, [validateManual, setLastResult])
+    setScanReady(false)
+    setPending({
+      mode: 'manual',
+      code: item.ticket_code,
+      ticketId: item.ticket_id || item.id,
+      info: {
+        status: item.status,
+        ticket_code: item.ticket_code,
+        display_name: item.display_name,
+        batch: item.batch,
+      },
+    })
+  }, [])
+
+  const handleConfirm = useCallback(async () => {
+    if (!pending || busy) return
+    setBusy(true)
+    try {
+      let res
+      if (pending.mode === 'manual') {
+        res = await validateManual(pending.ticketId)
+      } else if (mode === 'checkout' && config.checkout_enabled) {
+        res = await checkoutTicket(pending.code)
+      } else {
+        res = await validateTicket(pending.code)
+      }
+      setLastResult(res)
+      setPending(null)
+      setResult(res)
+      if (res?.status === 'authorized' || res?.status === 'checkout_registered') {
+        setLastUndo({ ticket_code: res.ticket_code || pending.code, display_name: res.display_name })
+      }
+    } finally {
+      setBusy(false)
+    }
+  }, [pending, busy, mode, config.checkout_enabled, validateManual, checkoutTicket, validateTicket, setLastResult])
+
+  const handleCancel = useCallback(() => {
+    setPending(null)
+    setScanReady(true)
+  }, [])
 
   const handleDismiss = useCallback(() => {
     setResult(null)
     setScanReady(true)
   }, [])
+
+  const handleUndo = useCallback(async () => {
+    const target = lastUndo
+      || (result?.ticket_code ? { ticket_code: result.ticket_code, display_name: result.display_name } : null)
+    if (!target || busy) return
+    setBusy(true)
+    try {
+      const res = await undoTicket(target.ticket_code)
+      setLastResult(res)
+      setLastUndo(null)
+      setResult(res)
+    } finally {
+      setBusy(false)
+    }
+  }, [lastUndo, result, busy, undoTicket, setLastResult])
 
   const handleLogout = () => { logout(); navigate('/login', { replace: true }) }
 
@@ -226,8 +326,19 @@ export default function Terminal() {
       {/* 1. TopBar escura */}
       <header className="terminal-topbar">
         <Logo size={26} light />
-        <SyncStatus showForce={false} />
-        {!generic && <span className="avatar" title={user?.name}>{initials(user?.name)}</span>}
+        <div className="terminal-topbar-right">
+          <button
+            type="button"
+            className="sound-toggle"
+            onClick={toggleSound}
+            aria-label={soundEnabled ? 'Desativar som' : 'Ativar som'}
+            title={soundEnabled ? 'Desativar som' : 'Ativar som'}
+          >
+            {soundEnabled ? '🔊' : '🔇'}
+          </button>
+          <SyncStatus showForce={false} />
+          {!generic && <span className="avatar" title={user?.name}>{initials(user?.name)}</span>}
+        </div>
       </header>
 
       {/* 2. Subtítulo */}
@@ -251,8 +362,21 @@ export default function Terminal() {
 
       {/* 3. Scanner — sempre disponível, nunca bloqueado */}
       <main className="terminal-main">
-        {result ? (
-          <ValidationResult result={result} onDismiss={handleDismiss} />
+        {pending ? (
+          <ValidationConfirm
+            ticket={pending.info}
+            kind={pending.mode !== 'manual' && mode === 'checkout' && config.checkout_enabled ? 'checkout' : 'checkin'}
+            onConfirm={handleConfirm}
+            onCancel={handleCancel}
+            busy={busy}
+          />
+        ) : result ? (
+          <ValidationResult
+            result={result}
+            onDismiss={handleDismiss}
+            onUndo={handleUndo}
+            soundEnabled={soundEnabled}
+          />
         ) : (
           <>
             <QRScanner onScan={handleScan} active={scanReady && scannerSource !== 'usb'} />
@@ -283,6 +407,17 @@ export default function Terminal() {
           enabled={!!config.master_ticket_enabled}
           onClick={() => setShowMaster(true)}
         />
+        {lastUndo && (
+          <button
+            type="button"
+            className="t-btn"
+            onClick={handleUndo}
+            disabled={busy}
+            title={`Desfazer validação de ${lastUndo.display_name || lastUndo.ticket_code}`}
+          >
+            ⟲ Desfazer
+          </button>
+        )}
         {config.checkout_enabled && (
           <button
             type="button"

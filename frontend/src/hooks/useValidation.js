@@ -1,5 +1,15 @@
 import { useCallback } from 'react'
-import { db, getTicketByCode, saveEntryLog, getMeta } from '../services/localDB'
+import {
+  db,
+  getTicketByCode,
+  saveEntryLog,
+  getMeta,
+  getLatestEntryLog,
+  countActiveEntryLogs,
+  markEntryLogReversed,
+  queuePendingUndo,
+  removePendingUndo,
+} from '../services/localDB'
 import { useTerminalStore } from '../store/terminalStore'
 import { useAuthStore }     from '../store/authStore'
 import api from '../services/api'
@@ -369,11 +379,91 @@ export function useValidation() {
     }
   }, [eventId, terminalId, user])
 
+  /**
+   * undoTicket(ticketCode) — desfaz a última validação de um ingresso.
+   * - Se on-line e o servidor aceitar, reverte localmente de forma definitiva.
+   * - Se off-line (ou falha de rede), reverte localmente e enfileira o undo
+   *   para o próximo ciclo de sync.
+   */
+  const undoTicket = useCallback(async (ticketCode) => {
+    const code = String(ticketCode || '').trim()
+    if (!code) return { status: RESULT.ERROR, reason: 'Código vazio.' }
+
+    const ticket = await getTicketByCode(code)
+    if (!ticket) return { status: RESULT.ERROR, reason: 'not_found' }
+
+    const activeCount = await countActiveEntryLogs(code)
+    // Sem logs locais não revertidos: assume primeira entrada (validação remota).
+    const isFirstEntry = activeCount <= 1
+
+    const revertLocal = async () => {
+      const log = await getLatestEntryLog(code)
+      const now = nowIso()
+      if (log && log.synced === 0) {
+        // Nunca chegou ao servidor → basta remover localmente.
+        await db.entry_logs.delete(log.id)
+        await removePendingUndo(ticket.ticket_code)
+      } else if (log) {
+        await markEntryLogReversed(log.id, now)
+        await queuePendingUndo({ ticket_code: ticket.ticket_code, created_at: log.created_at })
+      } else {
+        await queuePendingUndo({ ticket_code: ticket.ticket_code, created_at: now })
+      }
+      if (isFirstEntry) {
+        await db.tickets.update(ticket.id, {
+          status: 'active',
+          validated_at: null,
+          updated_at: now,
+        })
+      }
+    }
+
+    const online = typeof navigator === 'undefined' || navigator.onLine
+
+    if (online) {
+      try {
+        const genericBase = useTerminalStore.getState().genericBase()
+        const { data } = genericBase
+          ? await api.post(`${genericBase}/undo`, { ticket_code: code })
+          : await api.post('/api/validation/undo', {
+            ticket_code: code,
+            event_id: eventId,
+            terminal_id: terminalId,
+          })
+        await revertLocal()
+        await removePendingUndo(ticket.ticket_code)
+        return {
+          status: 'undone',
+          ticket_code: ticket.ticket_code,
+          display_name: ticket.display_name,
+          reverted_to_active: data?.reverted_to_active ?? isFirstEntry,
+        }
+      } catch (err) {
+        if (err?.response) {
+          // Resposta definitiva do servidor (janela expirada, já feito etc.)
+          const reason = err.response.data?.error || 'undo_failed'
+          return { status: RESULT.ERROR, reason }
+        }
+        // Falha de rede → trata como off-line abaixo.
+      }
+    }
+
+    await revertLocal()
+    return {
+      status: 'undone',
+      ticket_code: ticket.ticket_code,
+      display_name: ticket.display_name,
+      reverted_to_active: isFirstEntry,
+      offline: true,
+    }
+  }, [eventId, terminalId])
+
   return {
     lookupTicketCode,
     validateTicket,
     validateTicketCode,
     validateManual,
     checkoutTicket,
+    undoTicket,
   }
 }

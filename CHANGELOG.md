@@ -1,5 +1,69 @@
 # Changelog — Validevento
 
+## v2.6.0 — Confirmação, desfazer e correções do scanner (2026-10-15)
+
+### Resumo
+
+Resolve os problemas relatados no uso real do terminal: **loop infinito de
+validação no Android**, **câmera sempre ligada no desktop (auto-detecção
+imprecisa)** e ausência de controle do operador antes/depois da validação.
+Introduz a **tela de confirmação pré-validação**, a **tela pós-validação com
+opção de desfazer (undo)**, seleção manual/persistente do dispositivo de leitura
+e melhorias de UX (persistência de preferências, controle de som e prévia na
+busca manual).
+
+### 🐞 Correções
+
+- **Loop infinito no Android**: a câmera permanecia ativa durante a exibição do
+  resultado e, ao fechar sozinha em 2.5s, relia o mesmo QRCode indefinidamente.
+  Agora o scanner é **congelado** (`scanReady=false`) enquanto a confirmação/o
+  resultado estão na tela e só volta a ler após uma ação explícita
+  (`Continuar`/`Cancelar`/dismiss).
+- **Câmera sempre ativa no desktop**: o modo "auto" ligava a câmera e escutava
+  o leitor USB ao mesmo tempo. Agora, ao detectar entrada de leitor USB (HID),
+  o modo auto **desliga a câmera automaticamente** e passa a operar só pelo
+  leitor físico. A escolha do dispositivo fica **persistida** por terminal.
+- **Seleção manual do dispositivo**: o seletor de fonte agora deixa claro o que
+  cada opção faz — "Automático (câmera + USB)", "Apenas câmera" e
+  "Leitor USB (câmera off)".
+
+### ✨ Novo
+
+- **Tela de confirmação pré-validação** (`ValidationConfirm`): após a leitura
+  (QRCode ou busca manual), o operador vê nome, lote e status do ingresso e
+  escolhe **Confirmar entrada** ou **Cancelar** — a validação só é efetivada
+  após a confirmação.
+- **Tela pós-validação com desfazer** (`ValidationResult`): para entradas
+  autorizadas/saídas, exibe as ações **Desfazer** e **Continuar**. O desfazer
+  reverte a última validação do ingresso (dentro de uma janela configurável).
+  Há também um botão **⟲ Desfazer** no rodapé para reverter a última validação
+  após o overlay fechar.
+- **Undo no backend** (`POST /api/validation/undo` e
+  `POST /api/terminal/:slug/undo`): reverte o último check-in aberto do
+  ingresso. Se era a primeira entrada, o ingresso volta para `active`; se era
+  uma reentrada, apenas o log de reentrada é revertido (o ingresso segue
+  validado). Bloqueia desfazer após checkout e fora da janela de tempo
+  (`UNDO_WINDOW_MS`, padrão 120s). Os `entry_logs` permanecem imutáveis: o log
+  é marcado como `reversed` (auditoria preservada) em vez de apagado.
+- **Undo offline**: se o terminal estiver sem rede, o desfazer é aplicado
+  localmente e **enfileirado** (`pending_undos` no IndexedDB); o `syncService`
+  reenvia ao servidor na próxima sincronização.
+- **Controle de som**: botão de mudo/ativo na barra superior do terminal
+  (preferência persistida).
+
+### 🗄️ Banco de dados (migration `013_entry_log_undo.sql`)
+
+- `entry_logs`: novas colunas `reversed` (default `false`), `reversed_at`,
+  `reversed_by` e índice parcial `idx_logs_ticket_active`. Idempotente.
+
+### 🧪 Testes
+
+- Backend: **139/139** (nova suíte `undo`, T-undo-1..6).
+- Frontend: **62/62** (confirmação pré-validação e undo on/off-line), `lint` 0,
+  `build` OK.
+
+---
+
 ## v2.5.0 — Acesso e controle total do Master (2026-10-15)
 
 ### Resumo

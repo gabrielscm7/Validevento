@@ -459,6 +459,153 @@ async function checkout({ eventId, terminalId, validatorId, ticketCode, tenantId
 }
 
 // ────────────────────────────────────────────────
+// Desfazer validação (undo)
+// ────────────────────────────────────────────────
+
+// Janela para desfazer uma validação (ms). Padrão: 2 minutos.
+const UNDO_WINDOW_MS = Number.parseInt(process.env.UNDO_WINDOW_MS || '120000', 10);
+
+/**
+ * Reverte o último check-in aberto de um ingresso, dentro da janela de undo.
+ * - Só considera logs não revertidos, não duplicados e sem checkout.
+ * - Se havia entradas anteriores (reentrada), o ingresso CONTINUA validado.
+ * - Se era a primeira entrada, o ingresso volta para 'active'.
+ * Deve ser executado com o ticket já travado (FOR UPDATE).
+ */
+async function reverseLatestEntry(client, eventId, ticket, { terminalId, reversedBy, windowMs }) {
+  const logRes = await client.query(
+    `SELECT id, entry_type, terminal_id, created_at, checkout_at
+     FROM entry_logs
+     WHERE event_id = $1 AND ticket_id = $2
+       AND is_duplicate = false AND reversed = false
+     ORDER BY created_at DESC, id DESC
+     LIMIT 1
+     FOR UPDATE`,
+    [eventId, ticket.id]
+  );
+
+  if (logRes.rowCount === 0) {
+    return { error: 'nothing_to_undo' };
+  }
+
+  const log = logRes.rows[0];
+
+  if (log.checkout_at) {
+    return { error: 'already_checked_out' };
+  }
+
+  const age = Date.now() - new Date(log.created_at).getTime();
+  if (age > windowMs) {
+    return { error: 'undo_window_expired' };
+  }
+
+  if (terminalId && log.terminal_id && String(log.terminal_id) !== String(terminalId)) {
+    return { error: 'not_undoable_by_terminal' };
+  }
+
+  // Havia uma entrada anterior ainda válida? Então isto foi uma reentrada.
+  const priorRes = await client.query(
+    `SELECT 1 FROM entry_logs
+     WHERE event_id = $1 AND ticket_id = $2
+       AND is_duplicate = false AND reversed = false AND id <> $3
+     LIMIT 1`,
+    [eventId, ticket.id, log.id]
+  );
+  const isFirstEntry = priorRes.rowCount === 0;
+
+  await client.query(
+    `UPDATE entry_logs
+     SET reversed = true, reversed_at = NOW(), reversed_by = $2
+     WHERE id = $1`,
+    [log.id, reversedBy || null]
+  );
+
+  if (isFirstEntry) {
+    await client.query(
+      `UPDATE tickets
+       SET status = 'active', validated_at = NULL, checkout_at = NULL, updated_at = NOW()
+       WHERE id = $1`,
+      [ticket.id]
+    );
+  }
+
+  return {
+    undone: true,
+    entry_log_id: log.id,
+    entry_type: log.entry_type,
+    reverted_to_active: isFirstEntry,
+  };
+}
+
+/**
+ * Desfaz a última validação de um ingresso pelo ticket_code.
+ * Retorna { status: 'undone', ... } ou { error: '...' }.
+ */
+async function undoValidation({ eventId, terminalId, reversedBy, ticketCode, tenantId, windowMs }) {
+  const normalizedCode = String(ticketCode || '').trim().toLowerCase();
+  if (!isValidUUIDv4(normalizedCode)) {
+    return { error: 'not_found' };
+  }
+
+  const effectiveWindow = Number.isFinite(windowMs) ? windowMs : UNDO_WINDOW_MS;
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const config = await getEventConfig(client, eventId);
+    if (!config) {
+      await client.query('COMMIT');
+      return { error: 'not_found' };
+    }
+    if (tenantId && config.event_tenant_id !== tenantId) {
+      await client.query('COMMIT');
+      return { error: 'not_found' };
+    }
+
+    const ticketRes = await client.query(
+      `SELECT id, ticket_code, display_name, batch, status, validated_at, checkout_at, tenant_id
+       FROM tickets
+       WHERE event_id = $1 AND LOWER(ticket_code) = $2
+         AND ($3::uuid IS NULL OR tenant_id = $3)
+       FOR UPDATE`,
+      [eventId, normalizedCode, tenantId || null]
+    );
+
+    if (ticketRes.rowCount === 0) {
+      await client.query('COMMIT');
+      return { error: 'not_found' };
+    }
+
+    const ticket = ticketRes.rows[0];
+    const outcome = await reverseLatestEntry(client, eventId, ticket, {
+      terminalId,
+      reversedBy,
+      windowMs: effectiveWindow,
+    });
+
+    if (outcome.error) {
+      await client.query('COMMIT');
+      return { error: outcome.error };
+    }
+
+    await client.query('COMMIT');
+    return {
+      status: 'undone',
+      ticket_code: ticket.ticket_code,
+      display_name: ticket.display_name,
+      batch: ticket.batch,
+      reverted_to_active: outcome.reverted_to_active,
+      entry_type: outcome.entry_type,
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+// ────────────────────────────────────────────────
 // Ingresso master (integração com invitations)
 // ────────────────────────────────────────────────
 
@@ -528,6 +675,7 @@ module.exports = {
   validateQRCode,
   validateManual,
   checkout,
+  undoValidation,
   useMaster,
   searchTickets,
 };

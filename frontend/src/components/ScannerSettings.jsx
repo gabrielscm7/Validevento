@@ -7,11 +7,11 @@ export function ScannerSettings({ value, onChange }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="select"
-        style={{ minWidth: 130, padding: '4px 8px', fontSize: 12 }}
+        style={{ minWidth: 150, padding: '4px 8px', fontSize: 12 }}
       >
-        <option value="auto">Auto-detectar</option>
+        <option value="auto">Automático (câmera + USB)</option>
         <option value="camera">Apenas câmera</option>
-        <option value="usb">Scanner USB</option>
+        <option value="usb">Leitor USB (câmera off)</option>
       </select>
     </div>
   )

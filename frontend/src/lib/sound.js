@@ -24,6 +24,9 @@ export function playSound(status) {
 
     if (status === 'authorized' || status === 'checkout' || status === 'checkout_registered') {
       tone(880, 0, 0.15)
+    } else if (status === 'undone') {
+      tone(660, 0, 0.12)
+      tone(440, 0.14, 0.18)
     } else if (status === 'duplicate') {
       tone(440, 0, 0.2)
       tone(440, 0.3, 0.2)

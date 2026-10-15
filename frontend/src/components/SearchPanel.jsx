@@ -129,7 +129,7 @@ export function SearchPanel({ open, onClose, onConfirm }) {
                   disabled={r.status === 'blocked'}
                   onClick={() => onConfirm(r)}
                 >
-                  Confirmar entrada
+                  Selecionar
                 </button>
               </div>
             ))}

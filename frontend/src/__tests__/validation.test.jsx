@@ -3,6 +3,7 @@ import { render, screen, waitFor, act, renderHook } from '@testing-library/react
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { ValidationResult } from '../components/ValidationResult'
+import { ValidationConfirm } from '../components/ValidationConfirm'
 import { SearchPanel } from '../components/SearchPanel'
 import { useTerminalStore } from '../store/terminalStore'
 import { useAuthStore } from '../store/authStore'
@@ -14,6 +15,11 @@ const dbMocks = vi.hoisted(() => ({
   getTicketByCode: vi.fn(),
   saveEntryLog: vi.fn(),
   getMeta: vi.fn(),
+  getLatestEntryLog: vi.fn(),
+  countActiveEntryLogs: vi.fn(),
+  markEntryLogReversed: vi.fn(),
+  queuePendingUndo: vi.fn(),
+  removePendingUndo: vi.fn(),
 }))
 vi.mock('../services/api', () => ({
   default: { get: mocks.get, post: mocks.post },
@@ -23,6 +29,11 @@ vi.mock('../services/localDB', () => ({
   getTicketByCode: dbMocks.getTicketByCode,
   saveEntryLog: dbMocks.saveEntryLog,
   getMeta: dbMocks.getMeta,
+  getLatestEntryLog: dbMocks.getLatestEntryLog,
+  countActiveEntryLogs: dbMocks.countActiveEntryLogs,
+  markEntryLogReversed: dbMocks.markEntryLogReversed,
+  queuePendingUndo: dbMocks.queuePendingUndo,
+  removePendingUndo: dbMocks.removePendingUndo,
 }))
 
 describe('ValidationResult', () => {
@@ -70,6 +81,33 @@ describe('ValidationResult', () => {
   })
 })
 
+describe('ValidationConfirm', () => {
+  it('T-val-6: exibe dados e dispara onConfirm ao confirmar', async () => {
+    const onConfirm = vi.fn()
+    render(
+      <ValidationConfirm
+        ticket={{ status: 'active', display_name: 'João P.', batch: 'LOTE-1' }}
+        onConfirm={onConfirm}
+        onCancel={() => {}}
+      />
+    )
+    expect(screen.getByText('João P.')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Confirmar entrada/i }))
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+  })
+
+  it('T-val-7: botão de confirmação fica desabilitado para ingresso bloqueado', () => {
+    render(
+      <ValidationConfirm
+        ticket={{ status: 'blocked', display_name: 'X' }}
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />
+    )
+    expect(screen.getByRole('button', { name: /Confirmar entrada/i })).toBeDisabled()
+  })
+})
+
 describe('SearchPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -99,7 +137,7 @@ describe('SearchPanel', () => {
     })
 
     await waitFor(() => {
-      const buttons = screen.getAllByRole('button', { name: /Confirmar entrada/i })
+      const buttons = screen.getAllByRole('button', { name: /Selecionar/i })
       expect(buttons).toHaveLength(2)
     })
   })
@@ -148,5 +186,44 @@ describe('useValidation', () => {
         updated_at: expect.any(String),
       }))
     })
+  })
+
+  it('T-val-8: undoTicket chama o endpoint e reverte o ingresso para active', async () => {
+    const localTicket = { id: 9, ticket_code: 'tk-9', status: 'validated', display_name: 'Ana' }
+    dbMocks.getTicketByCode.mockResolvedValueOnce(localTicket)
+    dbMocks.countActiveEntryLogs.mockResolvedValueOnce(1)
+    dbMocks.getLatestEntryLog.mockResolvedValueOnce(null)
+    mocks.post.mockResolvedValueOnce({ data: { status: 'undone', reverted_to_active: true } })
+
+    const { result } = renderHook(() => useValidation())
+    let res
+    await act(async () => { res = await result.current.undoTicket('tk-9') })
+
+    expect(mocks.post).toHaveBeenCalledWith('/api/validation/undo', {
+      ticket_code: 'tk-9',
+      event_id: 'evt-123',
+      terminal_id: 'term-1',
+    })
+    expect(res.status).toBe('undone')
+    expect(dbMocks.update).toHaveBeenCalledWith(9, expect.objectContaining({ status: 'active' }))
+  })
+
+  it('T-val-9: undoTicket offline reverte local e enfileira o undo', async () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+    const localTicket = { id: 11, ticket_code: 'tk-11', status: 'validated', display_name: 'Bia' }
+    dbMocks.getTicketByCode.mockResolvedValueOnce(localTicket)
+    dbMocks.countActiveEntryLogs.mockResolvedValueOnce(1)
+    dbMocks.getLatestEntryLog.mockResolvedValueOnce({ id: 5, synced: 1, created_at: '2026-01-01T00:00:00Z' })
+
+    const { result } = renderHook(() => useValidation())
+    let res
+    await act(async () => { res = await result.current.undoTicket('tk-11') })
+
+    expect(mocks.post).not.toHaveBeenCalled()
+    expect(res.status).toBe('undone')
+    expect(res.offline).toBe(true)
+    expect(dbMocks.markEntryLogReversed).toHaveBeenCalledWith(5, expect.any(String))
+    expect(dbMocks.queuePendingUndo).toHaveBeenCalled()
+    expect(dbMocks.update).toHaveBeenCalledWith(11, expect.objectContaining({ status: 'active' }))
   })
 })
