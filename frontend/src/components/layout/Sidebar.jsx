@@ -28,7 +28,8 @@ export function Sidebar() {
   const mode = useThemeStore((s) => s.mode)
   const setMode = useThemeStore((s) => s.setMode)
 
-  const sections = resolveNav(location.pathname, user)
+  const tenantName = useScopeStore((s) => s.tenantName)
+  const sections = resolveNav(location.pathname, user, { tenantName })
   const isDark = resolveIsDark(mode)
 
   const eventId = eventIdFromPath(location.pathname)

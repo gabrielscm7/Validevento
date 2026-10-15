@@ -44,23 +44,45 @@ export function switchEventPath(currentPath, newEventId, role) {
   return `/supervisor/${newEventId}`
 }
 
-export function resolveNav(pathname, user) {
+/**
+ * Monta as seções da navegação lateral deixando explícito o escopo de cada
+ * grupo, para não misturar o painel da plataforma (master), o painel do
+ * cliente (tenant) e a operação de um evento:
+ *  - master → "Plataforma" (/master/*) + "Cliente" (/admin/* dentro do tenant)
+ *  - admin  → "Geral" (/admin/*)
+ *  - ambos  → "Evento" quando estamos numa rota de evento
+ */
+export function resolveNav(pathname, user, scope = {}) {
   const role = user?.role
   const sections = []
 
-  const geral = []
   if (role === 'master') {
-    geral.push({ to: '/master', label: 'Painel', icon: 'grid', end: true })
-    geral.push({ to: '/master/clientes', label: 'Clientes', icon: 'building' })
-    geral.push({ to: '/admin/eventos', label: 'Eventos', icon: 'calendar' })
-    geral.push({ to: '/admin/usuarios', label: 'Usuários', icon: 'users' })
+    sections.push({
+      title: 'Plataforma',
+      items: [
+        { to: '/master', label: 'Painel', icon: 'grid', end: true },
+        { to: '/master/clientes', label: 'Clientes', icon: 'building' },
+      ],
+    })
+    sections.push({
+      title: scope.tenantName ? `Cliente · ${scope.tenantName}` : 'Cliente',
+      items: [
+        { to: '/admin/eventos', label: 'Eventos', icon: 'calendar' },
+        { to: '/admin/usuarios', label: 'Usuários', icon: 'users' },
+      ],
+    })
   }
+
   if (role === 'admin') {
-    geral.push({ to: '/admin', label: 'Painel', icon: 'grid', end: true })
-    geral.push({ to: '/admin/eventos', label: 'Eventos', icon: 'calendar' })
-    geral.push({ to: '/admin/usuarios', label: 'Usuários', icon: 'users' })
+    sections.push({
+      title: 'Geral',
+      items: [
+        { to: '/admin', label: 'Painel', icon: 'grid', end: true },
+        { to: '/admin/eventos', label: 'Eventos', icon: 'calendar' },
+        { to: '/admin/usuarios', label: 'Usuários', icon: 'users' },
+      ],
+    })
   }
-  if (geral.length) sections.push({ title: 'Geral', items: geral })
 
   const eventId = eventIdFromPath(pathname)
   if (eventId && (role === 'admin' || role === 'supervisor' || role === 'master')) {

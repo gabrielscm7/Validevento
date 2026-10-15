@@ -85,10 +85,12 @@ export default function App() {
           <Route path="/admin/eventos/:id/terminais" element={<MasterTenantGate><PrivateRoute allowedRoles={['admin', 'master']}><TerminalManager /></PrivateRoute></MasterTenantGate>} />
           <Route path="/admin/usuarios" element={<MasterTenantGate><PrivateRoute allowedRoles={['admin', 'master']}><UsersManager /></PrivateRoute></MasterTenantGate>} />
 
-          {/* Supervisor */}
-          <Route path="/supervisor/:eventId" element={<PrivateRoute allowedRoles={['supervisor', 'admin', 'master']}><EventDashboard /></PrivateRoute>} />
-          <Route path="/supervisor/:eventId/portoes" element={<PrivateRoute allowedRoles={['supervisor', 'admin', 'master']}><GatesPanel /></PrivateRoute>} />
-          <Route path="/supervisor/:eventId/relatorio" element={<PrivateRoute allowedRoles={['supervisor', 'admin', 'master']}><ReportsPanel /></PrivateRoute>} />
+          {/* Supervisor — operação do evento.
+              O master só entra aqui depois de escolher o cliente (MasterTenantGate),
+              para não misturar o contexto de tenant com o de operação. */}
+          <Route path="/supervisor/:eventId" element={<MasterTenantGate><PrivateRoute allowedRoles={['supervisor', 'admin', 'master']}><EventDashboard /></PrivateRoute></MasterTenantGate>} />
+          <Route path="/supervisor/:eventId/portoes" element={<MasterTenantGate><PrivateRoute allowedRoles={['supervisor', 'admin', 'master']}><GatesPanel /></PrivateRoute></MasterTenantGate>} />
+          <Route path="/supervisor/:eventId/relatorio" element={<MasterTenantGate><PrivateRoute allowedRoles={['supervisor', 'admin', 'master']}><ReportsPanel /></PrivateRoute></MasterTenantGate>} />
         </Route>
 
         {/* Terminal genérico (acesso público por slug) */}
