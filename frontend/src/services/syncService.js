@@ -14,7 +14,7 @@ import {
   markLogsSynced,
 } from './localDB'
 
-const SYNC_INTERVAL_MS = 60 * 60 * 1000 // 60 minutos
+const SYNC_INTERVAL_MS = 30 * 1000 // 30 segundos
 
 let running = false
 let schedulerStarted = false
@@ -152,7 +152,7 @@ export async function forcSync() {
 
 /**
  * Agenda o sync automático:
- *  - a cada 60 minutos
+ *  - a cada 30 segundos
  *  - ao detectar reconexão de rede (window online)
  */
 export function startAutoSync() {

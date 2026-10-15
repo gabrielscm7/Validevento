@@ -24,33 +24,44 @@ export default function JoinTerminal() {
       .finally(() => setLoading(false))
   }, [slug])
 
-  async function handleEnter() {
+  async function handleEnter(maxAttempts = 3) {
     setEntering(true)
     setError('')
-    try {
-      await api.post(`/api/terminal/join/${slug}/open`, {
-        operator_name: operatorName.trim() || null,
-      })
+    let lastError
 
-      // Salva o contexto local para o Terminal.jsx operar offline.
-      await setTerminalId(data.terminal_id)
-      await setEventId(data.event_id)
-      await saveMeta('event_config', data.event_config)
-      await saveMeta('terminal_name', data.terminal_name)
-      await saveMeta('event_name', data.event_name)
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const { data: opened } = await api.post(`/api/terminal/join/${slug}/open`, {
+          operator_name: operatorName.trim() || null,
+        })
 
-      setGeneric({ slug })
-      await setEvent({ eventId: data.event_id })
-      await setTerminal({ terminalId: data.terminal_id, terminalName: data.terminal_name })
+        // Mescla com os dados do join (open pode não devolver tudo).
+        const info = { ...data, ...opened }
 
-      navigate(`/terminal/join/${slug}/app`, { replace: true })
-    } catch (e) {
-      setError(
-        e?.response?.data?.details || 'Não foi possível entrar no terminal.'
-      )
-    } finally {
-      setEntering(false)
+        // Salva o contexto local para o Terminal.jsx operar offline.
+        await setTerminalId(info.terminal_id)
+        await setEventId(info.event_id)
+        await saveMeta('event_config', info.event_config)
+        await saveMeta('terminal_name', info.terminal_name)
+        await saveMeta('event_name', info.event_name)
+
+        setGeneric({ slug })
+        await setEvent({ eventId: info.event_id })
+        await setTerminal({ terminalId: info.terminal_id, terminalName: info.terminal_name })
+
+        navigate(`/terminal/join/${slug}/app`, { replace: true })
+        return
+      } catch (e) {
+        lastError = e
+        if (attempt < maxAttempts) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000)
+          await new Promise((r) => setTimeout(r, delay))
+        }
+      }
     }
+
+    setError(lastError?.response?.data?.details || 'Não foi possível entrar no terminal.')
+    setEntering(false)
   }
 
   if (loading) return (

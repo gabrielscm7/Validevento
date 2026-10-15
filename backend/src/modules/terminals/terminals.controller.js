@@ -26,6 +26,18 @@ async function resolveGenericTerminal(req, res, next) {
         details: 'Link inválido ou terminal não encontrado.',
       });
     }
+    if (row.deleted_at) {
+      return res.status(410).json({
+        error: 'terminal_deleted',
+        details: 'Este terminal foi removido e não pode mais ser usado.',
+      });
+    }
+    if (row.suspended) {
+      return res.status(403).json({
+        error: 'terminal_suspended',
+        details: 'Acesso suspenso. Fale com o responsável pelo evento.',
+      });
+    }
     if (row.event_status !== 'active') {
       return res.status(403).json({
         error: 'event_not_active',
@@ -92,10 +104,67 @@ async function join(req, res) {
 async function open(req, res) {
   try {
     const { operator_name } = req.body || {};
-    await terminalsService.setOnline(req.genericTerminal.terminalId, operator_name);
-    return res.status(200).json({ ok: true, terminal_id: req.genericTerminal.terminalId });
+    const result = await terminalsService.openOrGetTerminal(req.params.slug, operator_name);
+
+    if (result.error) {
+      const statusMap = {
+        terminal_not_found: 404,
+        terminal_deleted: 410,
+        terminal_suspended: 403,
+      };
+      return res.status(statusMap[result.error] || 400).json({
+        error: result.error,
+        details: `Terminal não disponível: ${result.error}`,
+      });
+    }
+
+    return res.status(200).json(result);
   } catch (error) {
     return sendError(res, error);
+  }
+}
+
+async function suspend(req, res) {
+  try {
+    const { terminalId } = req.params;
+    const suspended = req.body?.suspended !== false;
+    const row = await terminalsService.setSuspended(terminalId, suspended, req.user.id);
+    if (!row) return res.status(404).json({ error: 'terminal_not_found' });
+    return res.status(200).json(row);
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+async function remove(req, res) {
+  try {
+    const { terminalId } = req.params;
+    const deleted = await terminalsService.softDelete(terminalId);
+    if (!deleted) return res.status(404).json({ error: 'terminal_not_found' });
+    return res.status(200).json({ deleted: true });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+async function getQRCode(req, res) {
+  try {
+    const { slug } = req.params;
+    const { format } = req.query;
+
+    if (format === 'png') {
+      const buffer = await terminalsService.generateQRBuffer(slug);
+      res.setHeader('Content-Type', 'image/png');
+      return res.send(buffer);
+    }
+
+    const result = await terminalsService.generateQRCode(slug);
+    return res.status(200).json(result);
+  } catch (err) {
+    if (err.message === 'terminal_not_found') {
+      return res.status(404).json({ error: 'terminal_not_found' });
+    }
+    return res.status(500).json({ error: 'qr_generation_failed' });
   }
 }
 
@@ -298,6 +367,9 @@ module.exports = {
   list,
   join,
   open,
+  suspend,
+  remove,
+  getQRCode,
   gates,
   getGate,
   setGate,

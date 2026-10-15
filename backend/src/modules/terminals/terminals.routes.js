@@ -24,12 +24,31 @@ eventsRouter.get(
   terminalsController.list
 );
 
+// PATCH /api/events/:eventId/terminals/:terminalId/suspend — suspende/reativa
+eventsRouter.patch(
+  '/:eventId/terminals/:terminalId/suspend',
+  requireRole('admin', 'master'),
+  eventAccess,
+  terminalsController.suspend
+);
+
+// DELETE /api/events/:eventId/terminals/:terminalId — soft-delete
+eventsRouter.delete(
+  '/:eventId/terminals/:terminalId',
+  requireRole('admin', 'master'),
+  eventAccess,
+  terminalsController.remove
+);
+
 // ── Rotas públicas (montadas em /api/terminal) — sem login ──
 const publicRouter = Router();
 const bySlug = terminalsController.resolveGenericTerminal;
 
 publicRouter.get('/join/:slug', bySlug, terminalsController.join);
 publicRouter.post('/join/:slug/open', bySlug, terminalsController.open);
+
+// QR code público do terminal (JSON com data URL ou PNG via ?format=png)
+publicRouter.get('/:slug/qr', bySlug, terminalsController.getQRCode);
 
 publicRouter.get('/:slug/gates', bySlug, terminalsController.gates);
 publicRouter.get('/:slug/gate', bySlug, terminalsController.getGate);

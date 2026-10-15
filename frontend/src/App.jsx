@@ -6,6 +6,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import ThemeCustomizer from './components/ThemeCustomizer'
 import AppShell from './components/layout/AppShell'
 import NoEventScreen from './pages/NoEvent'
+import { MasterTenantGate } from './components/master/MasterTenantGate'
 
 import Login from './pages/Login'
 import ActivateAccount from './pages/ActivateAccount'
@@ -24,6 +25,7 @@ import TeamManager from './pages/admin/TeamManager'
 import BatchManager from './pages/admin/BatchManager'
 import TicketsManager from './pages/admin/TicketsManager'
 import UsersManager from './pages/admin/UsersManager'
+import TerminalManager from './pages/admin/TerminalManager'
 
 import EventDashboard from './pages/supervisor/EventDashboard'
 import GatesPanel from './pages/supervisor/GatesPanel'
@@ -71,16 +73,17 @@ export default function App() {
           <Route path="/master/clientes/:id" element={<PrivateRoute allowedRoles={['master']}><ClientDetail /></PrivateRoute>} />
 
           {/* Admin (acessível também ao master, que opera por contexto de cliente) */}
-          <Route path="/admin" element={<PrivateRoute allowedRoles={['admin', 'master']}><AdminHome /></PrivateRoute>} />
-          <Route path="/admin/eventos" element={<PrivateRoute allowedRoles={['admin', 'master']}><EventsList /></PrivateRoute>} />
-          <Route path="/admin/eventos/novo" element={<PrivateRoute allowedRoles={['admin', 'master']}><EventForm /></PrivateRoute>} />
-          <Route path="/admin/eventos/:id" element={<PrivateRoute allowedRoles={['admin', 'master']}><EventDetail /></PrivateRoute>} />
-          <Route path="/admin/eventos/:id/editar" element={<PrivateRoute allowedRoles={['admin', 'master']}><EventForm /></PrivateRoute>} />
-          <Route path="/admin/eventos/:id/config" element={<PrivateRoute allowedRoles={['admin', 'master']}><EventConfig /></PrivateRoute>} />
-          <Route path="/admin/eventos/:id/equipe" element={<PrivateRoute allowedRoles={['admin', 'master']}><TeamManager /></PrivateRoute>} />
-          <Route path="/admin/eventos/:id/lotes" element={<PrivateRoute allowedRoles={['admin', 'master']}><BatchManager /></PrivateRoute>} />
-          <Route path="/admin/eventos/:id/ingressos" element={<PrivateRoute allowedRoles={['admin', 'master']}><TicketsManager /></PrivateRoute>} />
-          <Route path="/admin/usuarios" element={<PrivateRoute allowedRoles={['admin', 'master']}><UsersManager /></PrivateRoute>} />
+          <Route path="/admin" element={<MasterTenantGate><PrivateRoute allowedRoles={['admin', 'master']}><AdminHome /></PrivateRoute></MasterTenantGate>} />
+          <Route path="/admin/eventos" element={<MasterTenantGate><PrivateRoute allowedRoles={['admin', 'master']}><EventsList /></PrivateRoute></MasterTenantGate>} />
+          <Route path="/admin/eventos/novo" element={<MasterTenantGate><PrivateRoute allowedRoles={['admin', 'master']}><EventForm /></PrivateRoute></MasterTenantGate>} />
+          <Route path="/admin/eventos/:id" element={<MasterTenantGate><PrivateRoute allowedRoles={['admin', 'master']}><EventDetail /></PrivateRoute></MasterTenantGate>} />
+          <Route path="/admin/eventos/:id/editar" element={<MasterTenantGate><PrivateRoute allowedRoles={['admin', 'master']}><EventForm /></PrivateRoute></MasterTenantGate>} />
+          <Route path="/admin/eventos/:id/config" element={<MasterTenantGate><PrivateRoute allowedRoles={['admin', 'master']}><EventConfig /></PrivateRoute></MasterTenantGate>} />
+          <Route path="/admin/eventos/:id/equipe" element={<MasterTenantGate><PrivateRoute allowedRoles={['admin', 'master']}><TeamManager /></PrivateRoute></MasterTenantGate>} />
+          <Route path="/admin/eventos/:id/lotes" element={<MasterTenantGate><PrivateRoute allowedRoles={['admin', 'master']}><BatchManager /></PrivateRoute></MasterTenantGate>} />
+          <Route path="/admin/eventos/:id/ingressos" element={<MasterTenantGate><PrivateRoute allowedRoles={['admin', 'master']}><TicketsManager /></PrivateRoute></MasterTenantGate>} />
+          <Route path="/admin/eventos/:id/terminais" element={<MasterTenantGate><PrivateRoute allowedRoles={['admin', 'master']}><TerminalManager /></PrivateRoute></MasterTenantGate>} />
+          <Route path="/admin/usuarios" element={<MasterTenantGate><PrivateRoute allowedRoles={['admin', 'master']}><UsersManager /></PrivateRoute></MasterTenantGate>} />
 
           {/* Supervisor */}
           <Route path="/supervisor/:eventId" element={<PrivateRoute allowedRoles={['supervisor', 'admin', 'master']}><EventDashboard /></PrivateRoute>} />

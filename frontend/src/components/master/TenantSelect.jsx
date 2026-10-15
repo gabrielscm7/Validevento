@@ -7,7 +7,7 @@ import { useScopeStore } from '../../store/scopeStore'
  * Seletor de cliente para o MASTER definir o contexto de operação.
  * Só é renderizado para o perfil master; para os demais retorna null.
  */
-export default function TenantSelect({ onChange }) {
+export default function TenantSelect({ onChange, onSelect, required = false }) {
   const role = useAuthStore((s) => s.user?.role)
   const { tenantId, setTenant } = useScopeStore()
   const [clients, setClients] = useState([])
@@ -40,9 +40,11 @@ export default function TenantSelect({ onChange }) {
               const client = clients.find((c) => c.id === id)
               setTenant(id, client?.name || null)
               onChange?.(id)
+              onSelect?.(client ? { id: client.id, name: client.name } : null)
             }}
           >
-            <option value="">— Todos os clientes —</option>
+            {!required && <option value="">— Todos os clientes —</option>}
+            {required && <option value="" disabled>Selecione um cliente…</option>}
             {clients.map((c) => (
               <option key={c.id} value={c.id}>{c.name}{c.active ? '' : ' (suspenso)'}</option>
             ))}

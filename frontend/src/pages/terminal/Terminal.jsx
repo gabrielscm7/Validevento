@@ -7,6 +7,9 @@ import { syncWithServer } from '../../services/syncService'
 import { getMeta, saveMeta } from '../../services/localDB'
 import api from '../../services/api'
 import { QRScanner } from '../../components/QRScanner'
+import { ScannerInput } from '../../components/ScannerInput'
+import { ScannerSettings } from '../../components/ScannerSettings'
+import { useExternalScanner } from '../../hooks/useExternalScanner'
 import { SearchPanel } from '../../components/SearchPanel'
 import { ValidationResult } from '../../components/ValidationResult'
 import { SyncStatus } from '../../components/SyncStatus'
@@ -47,6 +50,7 @@ export default function Terminal() {
   const [syncing, setSyncing] = useState(false)
   const [gates, setGates] = useState([])
   const [showGatePicker, setShowGatePicker] = useState(false)
+  const [scannerSource, setScannerSource] = useState('auto')
   const lockRef = useRef(false)
 
   const refreshFromLocal = useCallback(async () => {
@@ -169,6 +173,12 @@ export default function Terminal() {
     }
   }, [mode, config.checkout_enabled, scanReady, checkoutTicket, validateTicket, setLastResult])
 
+  // Scanner USB (HID): lê código + Enter e dispara a mesma validação.
+  useExternalScanner({
+    onScan: handleScan,
+    enabled: scannerSource !== 'camera' && scanReady,
+  })
+
   const handleManualConfirm = useCallback(async (item) => {
     setShowSearch(false)
     const res = await validateManual(item.ticket_id || item.id)
@@ -245,7 +255,15 @@ export default function Terminal() {
           <ValidationResult result={result} onDismiss={handleDismiss} />
         ) : (
           <>
-            <QRScanner onScan={handleScan} active={scanReady} />
+            <QRScanner onScan={handleScan} active={scanReady && scannerSource !== 'usb'} />
+            <ScannerInput active={scannerSource !== 'camera'} />
+            {scannerSource !== 'camera' && (
+              <p className="scan-hint">
+                {scannerSource === 'usb'
+                  ? 'Aponte o leitor USB para o código'
+                  : 'Escaneie o QR code ou use o leitor USB'}
+              </p>
+            )}
             {syncing && <p className="scan-hint">sincronizando com o servidor…</p>}
           </>
         )}
@@ -253,6 +271,7 @@ export default function Terminal() {
 
       {/* 4. Rodapé */}
       <footer className="terminal-foot">
+        <ScannerSettings value={scannerSource} onChange={setScannerSource} />
         <button
           type="button"
           className="t-btn"

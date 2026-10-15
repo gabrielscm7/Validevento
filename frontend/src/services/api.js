@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useAuthStore } from '../store/authStore'
+import { useScopeStore } from '../store/scopeStore'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://backend-production-9738e.up.railway.app'
 
@@ -12,6 +13,13 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('ve_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+
+  // MASTER: envia o cliente selecionado para escopar o acesso no backend.
+  const { user } = useAuthStore.getState()
+  const { tenantId } = useScopeStore.getState()
+  if (user?.role === 'master' && tenantId) {
+    config.headers['X-Tenant-Id'] = tenantId
+  }
   return config
 })
 

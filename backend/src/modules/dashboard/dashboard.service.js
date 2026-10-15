@@ -288,6 +288,58 @@ async function getTerminals(eventId, tenantId) {
 }
 
 // ────────────────────────────────────────────────
+// Terminal detailed metrics
+// ────────────────────────────────────────────────
+
+async function getTerminalDetailedMetrics(eventId) {
+  const result = await db.query(
+    `WITH today_logs AS (
+       SELECT terminal_id, created_at
+       FROM entry_logs
+       WHERE event_id = $1 AND created_at >= CURRENT_DATE
+     ),
+     gaps AS (
+       SELECT terminal_id,
+              EXTRACT(EPOCH FROM (created_at - lag(created_at) OVER (
+                PARTITION BY terminal_id ORDER BY created_at
+              ))) AS gap
+       FROM today_logs
+     )
+     SELECT
+       t.id,
+       t.name,
+       t.online,
+       t.last_seen_at,
+       t.operator_name,
+       t.suspended,
+       (SELECT COUNT(*)::integer FROM entry_logs el WHERE el.terminal_id = t.id) AS total_validations,
+       (SELECT COUNT(*)::integer FROM today_logs tl WHERE tl.terminal_id = t.id) AS validations_today,
+       (SELECT AVG(g.gap) FROM gaps g WHERE g.terminal_id = t.id AND g.gap IS NOT NULL) AS avg_gap_seconds,
+       (SELECT MIN(tl.created_at) FROM today_logs tl WHERE tl.terminal_id = t.id) AS first_validation_today,
+       (SELECT MAX(tl.created_at) FROM today_logs tl WHERE tl.terminal_id = t.id) AS last_validation_today
+     FROM terminals t
+     WHERE t.event_id = $1
+       AND t.deleted_at IS NULL
+     ORDER BY t.name ASC`,
+    [eventId]
+  );
+
+  return result.rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    online: r.online,
+    suspended: r.suspended,
+    last_seen_at: r.last_seen_at,
+    operator_name: r.operator_name,
+    total_validations: Number(r.total_validations),
+    validations_today: Number(r.validations_today),
+    avg_gap_seconds: r.avg_gap_seconds != null ? Math.round(Number(r.avg_gap_seconds)) : null,
+    first_validation_today: r.first_validation_today,
+    last_validation_today: r.last_validation_today,
+  }));
+}
+
+// ────────────────────────────────────────────────
 // Live feed
 // ────────────────────────────────────────────────
 
@@ -391,6 +443,7 @@ module.exports = {
   getGates,
   getAlerts,
   getTerminals,
+  getTerminalDetailedMetrics,
   getLiveFeed,
   getSpeed,
 };

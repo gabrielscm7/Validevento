@@ -256,9 +256,14 @@ export default function EventDetail() {
         <div className="card card-pad mt-4">
           <div className="card-head">
             <h2 className="card-title">Terminais de acesso rápido</h2>
-            <Btn variant="outline" onClick={() => { setGenericName(''); setGenericModal(true) }}>
-              + Criar terminal
-            </Btn>
+            <div className="flex gap-2">
+              <Link to={`/admin/eventos/${id}/terminais`} className="btn btn-outline btn-sm">
+                Gerenciar
+              </Link>
+              <Btn variant="outline" onClick={() => { setGenericName(''); setGenericModal(true) }}>
+                + Criar terminal
+              </Btn>
+            </div>
           </div>
           <p className="card-sub">
             Terminais genéricos não exigem login. Qualquer pessoa com o link

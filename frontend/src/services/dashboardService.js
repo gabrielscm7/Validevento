@@ -31,6 +31,11 @@ export async function getDashboardTerminals(eventId) {
   return data
 }
 
+export async function getDashboardTerminalsDetailed(eventId) {
+  const { data } = await api.get(`/api/events/${eventId}/dashboard/terminals/detailed`)
+  return data
+}
+
 export async function getDashboardLiveFeed(eventId) {
   const { data } = await api.get(`/api/events/${eventId}/dashboard/live-feed`)
   return data

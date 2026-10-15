@@ -12,6 +12,7 @@ import { EntryChart } from '../../components/dashboard/EntryChart'
 import { BatchTable } from '../../components/dashboard/BatchTable'
 import { GateTable } from '../../components/dashboard/GateTable'
 import { TerminalsStatus } from '../../components/dashboard/TerminalsStatus'
+import { TerminalMetricsPanel } from '../../components/dashboard/TerminalMetricsPanel'
 import { LiveFeed } from '../../components/dashboard/LiveFeed'
 import { AlertsFeed } from '../../components/dashboard/AlertsFeed'
 import { formatDateTime } from '../../lib/format'
@@ -95,7 +96,11 @@ export default function EventDashboard() {
   const [statusBusy, setStatusBusy] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  const dash = useDashboardData(event && event.status === 'active' ? eventId : null)
+  const canSeeDetailed = user?.role === 'admin' || user?.role === 'master'
+  const dash = useDashboardData(
+    event && event.status === 'active' ? eventId : null,
+    { includeDetailed: canSeeDetailed }
+  )
 
   const loadEvent = useCallback(async () => {
     setLoading(true)
@@ -244,6 +249,15 @@ export default function EventDashboard() {
               <AlertsFeed data={dash.data?.alerts} loading={dash.loading} />
               <LiveFeed data={dash.data?.liveFeed} loading={dash.loading} />
             </div>
+
+            {canSeeDetailed && (
+              <div className="mt-4">
+                <TerminalMetricsPanel
+                  data={dash.data?.terminalsDetailed}
+                  loading={dash.loading}
+                />
+              </div>
+            )}
 
             <div className="mt-4">
               <TerminalsStatus data={dash.data?.terminals} loading={dash.loading} />

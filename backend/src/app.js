@@ -6,6 +6,7 @@ const env = require('./config/env');
 const database = require('./config/database');
 const authMiddleware = require('./middleware/auth');
 const requireRole = require('./middleware/roles');
+const { withForcedTenantId } = require('./middleware/eventAccess');
 
 // Importar rotas
 const authRoutes       = require('./modules/auth/auth.routes');
@@ -130,6 +131,11 @@ app.use('/api', (req, res, next) => {
   });
   next();
 });
+
+// ────────────────────────────────────────────────
+// Contexto de cliente (MASTER) via header X-Tenant-Id
+// ────────────────────────────────────────────────
+app.use('/api', withForcedTenantId);
 
 // ────────────────────────────────────────────────
 // Registrar Rotas da API

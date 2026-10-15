@@ -887,6 +887,18 @@ a { color: var(--vv-purple); text-decoration: none; }
 .t-btn.blue:hover { background: #3b6885; }
 .t-btn.active { background: var(--vv-blue); border-color: transparent; }
 
+/* scanner USB (input oculto que mantém o foco para leitores HID) */
+.scanner-usb-input {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
 /* scanner */
 .scan-stage {
   flex: 1;

@@ -47,3 +47,16 @@ export async function createGenericTerminal(eventId, name) {
   const { data } = await api.post(`/api/events/${eventId}/terminals/generic`, { name })
   return data
 }
+
+export async function suspendTerminal(eventId, terminalId, suspended) {
+  const { data } = await api.patch(
+    `/api/events/${eventId}/terminals/${terminalId}/suspend`,
+    { suspended }
+  )
+  return data
+}
+
+export async function deleteTerminal(eventId, terminalId) {
+  const { data } = await api.delete(`/api/events/${eventId}/terminals/${terminalId}`)
+  return data
+}

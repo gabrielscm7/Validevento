@@ -66,6 +66,15 @@ async function getTerminals(req, res) {
   }
 }
 
+async function terminalDetailedMetrics(req, res) {
+  try {
+    const data = await dashboardService.getTerminalDetailedMetrics(req.event.id);
+    return res.status(200).json(data);
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
 async function getLiveFeed(req, res) {
   try {
     const data = await dashboardService.getLiveFeed(req.event.id, req.tenantId, {
@@ -93,6 +102,7 @@ module.exports = {
   getGates,
   getAlerts,
   getTerminals,
+  terminalDetailedMetrics,
   getLiveFeed,
   getSpeed,
 };

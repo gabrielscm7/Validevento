@@ -6,9 +6,18 @@
  * autorização das rotas públicas é feita resolvendo o slug para
  * (terminal_id, event_id, tenant_id).
  */
+const QRCode = require('qrcode');
 const db = require('../../config/database');
 
 const SLUG_RE = /^[A-Z0-9]{6}$/;
+
+function frontendBaseUrl() {
+  return (
+    process.env.PUBLIC_BASE_URL ||
+    process.env.FRONTEND_URL ||
+    'https://www.validevento.com.br'
+  ).replace(/\/+$/, '');
+}
 
 const DEFAULT_CONFIG = {
   qrcode_field: 'ticket_code',
@@ -40,14 +49,23 @@ async function createGeneric(eventId, name) {
 
 async function listTerminals(eventId) {
   const result = await db.query(
-    `SELECT id, name, slug, is_generic, online, operator_name,
-            last_seen_at, created_at
-     FROM terminals
-     WHERE event_id = $1
-     ORDER BY created_at ASC`,
+    `SELECT t.id, t.name, t.slug, t.is_generic, t.online, t.operator_name,
+            t.last_seen_at, t.created_at, t.suspended, t.suspended_at,
+            e.name AS event_name,
+            (SELECT COUNT(*)::integer FROM entry_logs el
+              WHERE el.terminal_id = t.id
+                AND el.created_at >= CURRENT_DATE) AS validations_today
+     FROM terminals t
+     JOIN events e ON e.id = t.event_id
+     WHERE t.event_id = $1
+       AND t.deleted_at IS NULL
+     ORDER BY t.created_at ASC`,
     [eventId]
   );
-  return result.rows;
+  return result.rows.map((r) => ({
+    ...r,
+    validations_today: Number(r.validations_today),
+  }));
 }
 
 /** Resolve um slug para o terminal genérico + evento. Retorna null se inválido. */
@@ -57,6 +75,7 @@ async function findGenericBySlug(slug) {
 
   const result = await db.query(
     `SELECT t.id, t.name, t.event_id, t.online, t.operator_name,
+            t.suspended, t.suspended_at, t.deleted_at,
             e.name AS event_name, e.status AS event_status,
             e.date AS event_date, e.location, e.logo_url, e.tenant_id
      FROM terminals t
@@ -65,6 +84,66 @@ async function findGenericBySlug(slug) {
     [normalized]
   );
   return result.rows[0] || null;
+}
+
+/**
+ * Abre (ou reabre) um terminal genérico de forma idempotente.
+ * Vários clientes podem abrir o mesmo slug simultaneamente sem conflito.
+ */
+async function openOrGetTerminal(slug, operatorName) {
+  const terminal = await findGenericBySlug(slug);
+
+  if (!terminal) return { error: 'terminal_not_found' };
+  if (terminal.deleted_at) return { error: 'terminal_deleted' };
+  if (terminal.suspended) return { error: 'terminal_suspended' };
+
+  const result = await db.query(
+    `UPDATE terminals
+     SET online = true,
+         last_seen_at = NOW(),
+         operator_name = COALESCE($2, operator_name)
+     WHERE id = $1
+     RETURNING id, name, event_id, online, operator_name`,
+    [terminal.id, operatorName || null]
+  );
+
+  const row = result.rows[0];
+  return {
+    terminal_id: row.id,
+    terminal_name: row.name,
+    event_id: row.event_id,
+    event_name: terminal.event_name,
+    event_date: terminal.event_date,
+    event_location: terminal.location,
+    logo_url: terminal.logo_url,
+    event_config: await getEventConfig(terminal.event_id),
+  };
+}
+
+/** Suspende/reativa um terminal. */
+async function setSuspended(terminalId, suspended, userId) {
+  const result = await db.query(
+    `UPDATE terminals
+     SET suspended = $2,
+         suspended_at = CASE WHEN $2 = true THEN NOW() ELSE NULL END,
+         suspended_by = CASE WHEN $2 = true THEN $3::uuid ELSE NULL END
+     WHERE id = $1 AND deleted_at IS NULL
+     RETURNING *`,
+    [terminalId, suspended, userId || null]
+  );
+  return result.rows[0] || null;
+}
+
+/** Soft-delete: preserva os dados e apenas torna o terminal inacessível. */
+async function softDelete(terminalId) {
+  const result = await db.query(
+    `UPDATE terminals
+     SET deleted_at = NOW(), online = false
+     WHERE id = $1 AND deleted_at IS NULL
+     RETURNING id`,
+    [terminalId]
+  );
+  return result.rowCount > 0;
 }
 
 async function getEventConfig(eventId) {
@@ -84,6 +163,46 @@ async function getEventConfig(eventId) {
   };
 }
 
+/** Gera o QR code (data URL) e a URL pública de acesso rápido do terminal. */
+async function generateQRCode(slug) {
+  const normalized = String(slug || '').trim().toUpperCase();
+  if (!SLUG_RE.test(normalized)) {
+    throw new Error('terminal_not_found');
+  }
+  const terminal = await findGenericBySlug(normalized);
+  if (!terminal || terminal.deleted_at) {
+    throw new Error('terminal_not_found');
+  }
+
+  const url = `${frontendBaseUrl()}/terminal/join/${normalized}`;
+  const qrcode = await QRCode.toDataURL(url, {
+    width: 400,
+    margin: 2,
+    color: { dark: '#000000', light: '#FFFFFF' },
+    errorCorrectionLevel: 'M',
+  });
+  return { slug: normalized, url, qrcode };
+}
+
+/** Gera o QR code no formato PNG (buffer). */
+async function generateQRBuffer(slug) {
+  const normalized = String(slug || '').trim().toUpperCase();
+  if (!SLUG_RE.test(normalized)) {
+    throw new Error('terminal_not_found');
+  }
+  const terminal = await findGenericBySlug(normalized);
+  if (!terminal || terminal.deleted_at) {
+    throw new Error('terminal_not_found');
+  }
+
+  const url = `${frontendBaseUrl()}/terminal/join/${normalized}`;
+  return QRCode.toBuffer(url, {
+    width: 400,
+    margin: 2,
+    errorCorrectionLevel: 'M',
+  });
+}
+
 async function setOnline(terminalId, operatorName) {
   await db.query(
     `UPDATE terminals
@@ -100,4 +219,9 @@ module.exports = {
   findGenericBySlug,
   getEventConfig,
   setOnline,
+  openOrGetTerminal,
+  setSuspended,
+  softDelete,
+  generateQRCode,
+  generateQRBuffer,
 };

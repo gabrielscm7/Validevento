@@ -46,6 +46,13 @@ router.get(
 );
 
 router.get(
+  '/:eventId/dashboard/terminals/detailed',
+  eventAccess,
+  requireEventRole('admin', 'master'),
+  dashboardController.terminalDetailedMetrics
+);
+
+router.get(
   '/:eventId/dashboard/terminals',
   eventAccess,
   requireEventRole('supervisor', 'admin', 'master'),
