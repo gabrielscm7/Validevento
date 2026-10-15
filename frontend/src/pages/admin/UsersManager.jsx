@@ -5,11 +5,15 @@ import { Modal, Btn } from '../../components/ui'
 import { listUsers, createUser, updateUser, updateUserProfile, deactivateUser } from '../../services/usersService'
 import { formatCPF, onlyDigits, ROLE_LABEL } from '../../lib/format'
 import { useAuthStore } from '../../store/authStore'
+import { useActiveTenantId } from '../../store/scopeStore'
+import TenantSelect from '../../components/master/TenantSelect'
 
 const EMPTY = { name: '', cpf: '', email: '', role: 'validator' }
 
 export default function UsersManager() {
   const { user: me } = useAuthStore()
+  const isMaster = me?.role === 'master'
+  const tenantId = useActiveTenantId()
   const [users, setUsers] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -25,14 +29,14 @@ export default function UsersManager() {
     setLoading(true)
     setError('')
     try {
-      const data = await listUsers()
+      const data = await listUsers(tenantId)
       setUsers(data)
     } catch (e) {
       setError(e?.response?.data?.error || 'Erro ao carregar usuários.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [tenantId])
 
   useEffect(() => { load() }, [load])
 
@@ -53,6 +57,7 @@ export default function UsersManager() {
         cpf: onlyDigits(form.cpf),
         email: form.email,
         role: form.role,
+        ...(isMaster ? { tenant_id: tenantId } : {}),
       })
       setMsg(`Convite enviado para ${form.email}`)
       setForm(EMPTY)
@@ -120,6 +125,8 @@ export default function UsersManager() {
       <div className="page-body">
         {error && <ErrorNotice>{error}</ErrorNotice>}
 
+        <TenantSelect />
+
         <section className="hero">
           <div>
             <p className="hero-eyebrow">Usuários</p>
@@ -127,19 +134,30 @@ export default function UsersManager() {
             <p className="hero-sub">Convide supervisores e validadores para operar seus eventos.</p>
           </div>
           <div className="hero-actions">
-            <Btn variant="primary" size="lg" onClick={() => { setForm(EMPTY); setModal(true) }}>+ Convidar usuário</Btn>
+            <Btn variant="primary" size="lg"
+              disabled={isMaster && !tenantId}
+              title={isMaster && !tenantId ? 'Selecione um cliente para convidar usuários' : undefined}
+              onClick={() => { setForm(EMPTY); setModal(true) }}>+ Convidar usuário</Btn>
           </div>
         </section>
 
-        {/* Cotas usadas */}
-        <div className="grid grid-cols-3 mb-4">
-          {['admin', 'supervisor', 'validator'].map((role) => (
-            <div key={role} className="card metric-card">
-              <p className="metric-label">{ROLE_LABEL[role]}s</p>
-              <p className="metric-value">{quotas[role].used}<span className="metric-sub" style={{ fontSize: 14 }}> ativos</span></p>
-            </div>
-          ))}
-        </div>
+        {isMaster && !tenantId && (
+          <p className="text-muted text-sm mb-4">
+            Selecione um cliente acima para criar usuários e visualizar as cotas.
+          </p>
+        )}
+
+        {/* Cotas usadas — só fazem sentido com um tenant definido */}
+        {(!isMaster || tenantId) && (
+          <div className="grid grid-cols-3 mb-4">
+            {['admin', 'supervisor', 'validator'].map((role) => (
+              <div key={role} className="card metric-card">
+                <p className="metric-label">{ROLE_LABEL[role]}s</p>
+                <p className="metric-value">{quotas[role].used}<span className="metric-sub" style={{ fontSize: 14 }}> ativos</span></p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {users && users.length === 0 && (
           <div className="card"><EmptyState title="Nenhum usuário" sub="Convide a primeira pessoa da sua equipe." /></div>
@@ -221,6 +239,7 @@ export default function UsersManager() {
           <div className="field">
             <label className="label">Perfil</label>
             <select className="select" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+              {isMaster && <option value="admin">Administrador</option>}
               <option value="supervisor">Supervisor</option>
               <option value="validator">Validador</option>
             </select>

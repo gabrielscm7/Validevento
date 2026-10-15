@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import TopBar from '../../components/TopBar'
 import { PageLoader, ErrorNotice, EmptyState } from '../../components/feedback'
 import { getClient, getClientUsage } from '../../services/clientsService'
@@ -8,6 +8,7 @@ import { listUsers } from '../../services/usersService'
 import { getAuditLog } from '../../services/reportsService'
 import { formatDateTime, ROLE_LABEL } from '../../lib/format'
 import PurgeEventModal from '../../components/PurgeEventModal'
+import { useScopeStore } from '../../store/scopeStore'
 import { toast } from 'sonner'
 
 function QuotaBar({ label, used, max }) {
@@ -36,6 +37,8 @@ const ROLE_KEYS = [
 
 export default function ClientDetail() {
   const { id } = useParams()
+  const navigate = useNavigate()
+  const setTenant = useScopeStore((s) => s.setTenant)
   const [client, setClient] = useState(null)
   const [usage, setUsage] = useState(null)
   const [users, setUsers] = useState(null)
@@ -96,7 +99,21 @@ export default function ClientDetail() {
               <span className="ml-2 badge badge-green">Ativo</span>
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => { setTenant(id, client?.name); navigate('/admin/eventos') }}
+            >
+              Gerenciar eventos
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => { setTenant(id, client?.name); navigate('/admin/usuarios') }}
+            >
+              Gerenciar usuários
+            </button>
             <Link to="/master/clientes" className="btn-ghost btn">← Clientes</Link>
           </div>
         </section>
@@ -162,6 +179,13 @@ export default function ClientDetail() {
                 <span className={`badge ${
                   e.status === 'active' ? 'badge-green' : e.status === 'draft' ? 'badge-gray' : 'badge-red'
                 }`}>{e.status}</span>
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm"
+                  onClick={() => { setTenant(id, client?.name); navigate(`/admin/eventos/${e.id}`) }}
+                >
+                  Abrir
+                </button>
                 {(e.status === 'closed' || e.status === 'purged') && (
                   <button
                     type="button"

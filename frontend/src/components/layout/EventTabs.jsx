@@ -3,7 +3,7 @@ import { resolveEventItems } from '../../lib/nav'
 import { NavIcon } from './icons'
 
 export function EventTabs({ eventId, role }) {
-  if (!eventId || (role !== 'admin' && role !== 'supervisor')) return null
+  if (!eventId || (role !== 'admin' && role !== 'supervisor' && role !== 'master')) return null
   const items = resolveEventItems(eventId, role)
 
   return (

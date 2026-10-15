@@ -281,7 +281,7 @@ export default function Terminal() {
         >
           ⏻
         </button>
-        {!generic && user?.role === 'admin' && (
+        {!generic && (user?.role === 'admin' || user?.role === 'master') && (
           <button
             type="button"
             className="t-btn"

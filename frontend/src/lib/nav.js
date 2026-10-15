@@ -6,7 +6,7 @@ export function resolveEventItems(eventId, role) {
   const items = [
     { to: `/supervisor/${eventId}`, label: 'Visão geral', icon: 'pulse', end: true },
   ]
-  if (role === 'admin') {
+  if (role === 'admin' || role === 'master') {
     items.push(
       { to: `/admin/eventos/${eventId}/config`, label: 'Configurações', icon: 'settings' },
       { to: `/admin/eventos/${eventId}/equipe`, label: 'Equipe', icon: 'users' },
@@ -38,7 +38,7 @@ export function switchEventPath(currentPath, newEventId, role) {
   const suffix = match && match[1] ? match[1] : ''
 
   if (SHARED_SECTIONS.includes(suffix)) return `/supervisor/${newEventId}${suffix}`
-  if (role === 'admin' && ADMIN_SECTIONS.includes(suffix)) {
+  if ((role === 'admin' || role === 'master') && ADMIN_SECTIONS.includes(suffix)) {
     return `/admin/eventos/${newEventId}${suffix}`
   }
   return `/supervisor/${newEventId}`
@@ -52,6 +52,8 @@ export function resolveNav(pathname, user) {
   if (role === 'master') {
     geral.push({ to: '/master', label: 'Painel', icon: 'grid', end: true })
     geral.push({ to: '/master/clientes', label: 'Clientes', icon: 'building' })
+    geral.push({ to: '/admin/eventos', label: 'Eventos', icon: 'calendar' })
+    geral.push({ to: '/admin/usuarios', label: 'Usuários', icon: 'users' })
   }
   if (role === 'admin') {
     geral.push({ to: '/admin', label: 'Painel', icon: 'grid', end: true })
@@ -61,7 +63,7 @@ export function resolveNav(pathname, user) {
   if (geral.length) sections.push({ title: 'Geral', items: geral })
 
   const eventId = eventIdFromPath(pathname)
-  if (eventId && (role === 'admin' || role === 'supervisor')) {
+  if (eventId && (role === 'admin' || role === 'supervisor' || role === 'master')) {
     sections.push({ title: 'Evento', items: resolveEventItems(eventId, role) })
   }
 

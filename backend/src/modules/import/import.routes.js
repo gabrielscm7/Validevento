@@ -63,7 +63,7 @@ const router = express.Router();
 router.post(
   '/csv',
   authMiddleware,
-  requireRole('admin'),
+  requireRole('admin', 'master'),
   upload.single('file'),
   importController.importFile
 );

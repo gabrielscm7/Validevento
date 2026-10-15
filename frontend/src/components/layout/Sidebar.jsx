@@ -1,5 +1,6 @@
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
+import { useScopeStore } from '../../store/scopeStore'
 import { useUIStore } from '../../store/uiStore'
 import { useThemeStore } from '../../store/themeStore'
 import { resolveIsDark } from '../../lib/theme'
@@ -36,6 +37,7 @@ export function Sidebar() {
 
   function handleLogout() {
     logout()
+    useScopeStore.getState().clearTenant()
     navigate('/login', { replace: true })
   }
 
