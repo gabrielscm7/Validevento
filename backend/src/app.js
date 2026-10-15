@@ -77,7 +77,17 @@ function resolveCorsOrigin(value) {
 const corsOptions = {
   origin: resolveCorsOrigin(env.corsOrigin),
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma'],
+  // X-Tenant-Id: contexto de cliente selecionado pelo MASTER (envia em toda
+  // requisição autenticada). Sem whitelist aqui o preflight CORS falha com
+  // "Request header field x-tenant-id is not allowed".
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Cache-Control',
+    'Pragma',
+    'X-Tenant-Id',
+  ],
+  exposedHeaders: ['X-Tenant-Id'],
   credentials: true,
   maxAge: 86400,
 };

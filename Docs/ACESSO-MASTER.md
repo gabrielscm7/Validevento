@@ -63,7 +63,34 @@ cliente** está sendo operado:
 - **`frontend/src/components/master/TenantSelect.jsx`** (novo) — seletor de
   cliente, renderizado apenas para master no topo das telas de admin.
 
-### 3.3 Telas ajustadas
+### 3.3 Contexto de cliente via header `X-Tenant-Id`
+
+A partir da v2.6.0 o cliente selecionado pelo master é enviado ao backend em
+**toda** requisição autenticada, via header `X-Tenant-Id`:
+
+- `frontend/src/services/api.js` — o interceptor de request adiciona
+  `X-Tenant-Id: <uuid>` quando `user.role === 'master'` e há cliente no
+  `scopeStore`.
+- `backend/src/app.js` — `app.use('/api', withForcedTenantId)` lê o header.
+- `backend/src/middleware/eventAccess.js` — `eventAccessRequireTenant` exige o
+  header para o master (rotas de evento) e devolve `404` para evento de outro
+  cliente; `eventAccess` também passa a respeitar `req.forcedTenantId`.
+
+> **CORS (hotfix de produção).** Sendo um header customizado, o `X-Tenant-Id`
+> precisa constar em `Access-Control-Allow-Headers`. Sem isso o navegador
+> bloqueia a preflight e nenhuma requisição do master chega ao servidor:
+>
+> ```
+> Request header field x-tenant-id is not allowed by
+> Access-Control-Allow-Headers in preflight response.
+> ```
+>
+> Correção: `backend/src/app.js` (`corsOptions.allowedHeaders` +
+> `exposedHeaders`). Regressão coberta em
+> `backend/src/__tests__/implementation-guide.test.js`
+> (teste *"CORS: preflight libera o header X-Tenant-Id"*).
+
+### 3.4 Telas ajustadas
 
 | Arquivo | Ajuste |
 |---|---|

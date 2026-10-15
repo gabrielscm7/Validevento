@@ -44,6 +44,19 @@ describe('Implementation guide — fases 1–4', () => {
     await pool.end();
   });
 
+  // ── CORS: header X-Tenant-Id permitido no preflight ──
+  test('CORS: preflight libera o header X-Tenant-Id', async () => {
+    const res = await api()
+      .options('/api/users')
+      .set('Origin', process.env.CORS_ORIGIN)
+      .set('Access-Control-Request-Method', 'GET')
+      .set('Access-Control-Request-Headers', 'authorization,x-tenant-id');
+
+    expect([200, 204]).toContain(res.status);
+    expect(String(res.headers['access-control-allow-headers']).toLowerCase())
+      .toContain('x-tenant-id');
+  });
+
   // ── FASE 1 ──
   test('F1: master sem cliente selecionado não acessa evento (403)', async () => {
     const res = await api().get(`/api/events/${eventA.id}`).set(auth(masterToken));
