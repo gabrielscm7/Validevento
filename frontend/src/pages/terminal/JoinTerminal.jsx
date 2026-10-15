@@ -139,7 +139,7 @@ export default function JoinTerminal() {
 
             <button
               type="button"
-              onClick={handleEnter}
+              onClick={() => handleEnter()}
               disabled={entering}
               style={{
                 width: '100%', background: '#4A2368',

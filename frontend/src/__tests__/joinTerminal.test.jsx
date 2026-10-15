@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import JoinTerminal from '../pages/terminal/JoinTerminal'
 import Terminal from '../pages/terminal/Terminal'
@@ -51,6 +51,48 @@ describe('Acesso genérico por slug', () => {
     expect(await screen.findByText('Portaria 1')).toBeInTheDocument()
     expect(screen.getByText('Festa Genérica')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Entrar como validador/i })).toBeInTheDocument()
+  })
+
+  it('T-join-enter: clique em Entrar dispara o POST e navega para o terminal', async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        terminal_id: 't1',
+        terminal_name: 'Portaria 1',
+        event_id: EVENT_ID,
+        event_name: 'Festa Genérica',
+        event_config: { checkout_enabled: false },
+      },
+    })
+    mocks.post.mockResolvedValue({
+      data: {
+        terminal_id: 't1',
+        terminal_name: 'Portaria 1',
+        event_id: EVENT_ID,
+        event_name: 'Festa Genérica',
+        event_config: { checkout_enabled: false },
+      },
+    })
+
+    render(
+      <MemoryRouter initialEntries={[`/terminal/join/${SLUG}`]}>
+        <Routes>
+          <Route path="/terminal/join/:slug" element={<JoinTerminal />} />
+          <Route path="/terminal/join/:slug/app" element={<div>TERMINAL APP</div>} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    const button = await screen.findByRole('button', { name: /Entrar como validador/i })
+    fireEvent.click(button)
+
+    await waitFor(() => {
+      expect(mocks.post).toHaveBeenCalledWith(
+        `/api/terminal/join/${SLUG}/open`,
+        expect.objectContaining({ operator_name: null })
+      )
+    })
+    expect(await screen.findByText('TERMINAL APP')).toBeInTheDocument()
+    expect(screen.queryByText(/Não foi possível entrar no terminal/i)).toBeNull()
   })
 
   it('T-terminal-generic-sem-avatar: modo genérico não mostra avatar do usuário', async () => {
