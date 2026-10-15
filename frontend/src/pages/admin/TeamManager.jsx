@@ -6,10 +6,12 @@ import { Modal, Btn } from '../../components/ui'
 import { getEvent } from '../../services/eventsService'
 import { listTeam, addTeamMember, removeTeamMember } from '../../services/eventsActionsService'
 import { listUsers } from '../../services/usersService'
+import { useAuthStore } from '../../store/authStore'
 import { ROLE_LABEL } from '../../lib/format'
 
 export default function TeamManager() {
   const { id } = useParams()
+  const isMaster = useAuthStore((s) => s.user?.role) === 'master'
   const [event, setEvent] = useState(null)
   const [team, setTeam] = useState(null)
   const [users, setUsers] = useState(null)
@@ -24,7 +26,12 @@ export default function TeamManager() {
     setLoading(true)
     setError('')
     try {
-      const [ev, t, u] = await Promise.all([getEvent(id), listTeam(id), listUsers()])
+      // O master precisa dos usuários do tenant do evento (não de todos os clientes).
+      const ev = await getEvent(id)
+      const [t, u] = await Promise.all([
+        listTeam(id),
+        listUsers(isMaster ? ev.tenant_id : undefined),
+      ])
       setEvent(ev)
       setTeam(t)
       setUsers(u)
@@ -33,7 +40,7 @@ export default function TeamManager() {
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [id, isMaster])
 
   useEffect(() => { load() }, [load])
 

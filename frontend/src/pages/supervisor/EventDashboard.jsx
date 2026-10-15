@@ -114,7 +114,7 @@ export default function EventDashboard() {
 
   useEffect(() => { loadEvent() }, [loadEvent])
 
-  const canActivate = user?.role === 'admin' && event?.status === 'draft'
+  const canActivate = (user?.role === 'admin' || user?.role === 'master') && event?.status === 'draft'
 
   async function handleActivate() {
     if (!event) return

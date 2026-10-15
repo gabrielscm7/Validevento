@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import TopBar from '../../components/TopBar'
 import { PageLoader, ErrorNotice, EmptyState } from '../../components/feedback'
 import EventCard from '../../components/admin/EventCard'
+import TenantSelect from '../../components/master/TenantSelect'
 import { listEvents } from '../../services/eventsService'
+import { useActiveTenantId } from '../../store/scopeStore'
 import { Btn } from '../../components/ui'
 
 const FILTERS = [
@@ -14,6 +16,7 @@ const FILTERS = [
 ]
 
 export default function EventsList() {
+  const tenantId = useActiveTenantId()
   const [events, setEvents] = useState(null)
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -24,14 +27,17 @@ export default function EventsList() {
     setLoading(true)
     setError('')
     try {
-      const data = await listEvents(filter === 'all' ? {} : { status: filter })
+      const params = {}
+      if (tenantId) params.tenant_id = tenantId
+      if (filter !== 'all') params.status = filter
+      const data = await listEvents(params)
       setEvents(data)
     } catch (e) {
       setError(e?.response?.data?.error || 'Erro ao carregar eventos.')
     } finally {
       setLoading(false)
     }
-  }, [filter])
+  }, [filter, tenantId])
 
   useEffect(() => { load() }, [load])
 
@@ -40,6 +46,8 @@ export default function EventsList() {
       <TopBar crumb="Admin · Eventos" />
       <div className="page-body">
         {error && <ErrorNotice>{error}</ErrorNotice>}
+
+        <TenantSelect />
 
         <section className="hero">
           <div>

@@ -4,7 +4,9 @@ import TopBar from '../../components/TopBar'
 import { PageLoader, ErrorNotice, EmptyState } from '../../components/feedback'
 import EventCard from '../../components/admin/EventCard'
 import Btn from '../../components/ui'
+import TenantSelect from '../../components/master/TenantSelect'
 import { listEvents } from '../../services/eventsService'
+import { useActiveTenantId } from '../../store/scopeStore'
 import { useTerminalStore } from '../../store/terminalStore'
 
 function TicketHero() {
@@ -31,6 +33,7 @@ function TicketHero() {
 }
 
 export default function AdminHome() {
+  const tenantId = useActiveTenantId()
   const [events, setEvents] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -40,14 +43,14 @@ export default function AdminHome() {
     setLoading(true)
     setError('')
     try {
-      const data = await listEvents()
+      const data = await listEvents(tenantId ? { tenant_id: tenantId } : {})
       setEvents(data)
     } catch (e) {
       setError(e?.response?.data?.error || 'Erro ao carregar eventos.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [tenantId])
 
   useEffect(() => { load() }, [load])
 
@@ -65,6 +68,8 @@ export default function AdminHome() {
       <TopBar crumb="Painel do administrador" />
       <div className="page-body">
         {error && <ErrorNotice>{error}</ErrorNotice>}
+
+        <TenantSelect />
 
         <section className="hero">
           <div>

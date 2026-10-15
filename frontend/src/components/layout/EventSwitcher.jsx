@@ -21,7 +21,7 @@ export function EventSwitcher({ eventId, eventName }) {
   const ref = useRef(null)
 
   const role = user?.role
-  const canList = role === 'admin' || role === 'supervisor'
+  const canList = role === 'admin' || role === 'supervisor' || role === 'master'
   const events = useEventList(canList)
 
   useEffect(() => {

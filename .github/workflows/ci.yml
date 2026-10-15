@@ -17,7 +17,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15-alpine
+        image: postgres:16-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -87,4 +87,4 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_API_URL: https://api.validevento.com
+          VITE_API_URL: https://api.validevento.com.br

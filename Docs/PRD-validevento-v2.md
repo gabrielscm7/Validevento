@@ -3,7 +3,7 @@
 
 **Data:** Setembro 2026
 **Versão anterior:** PRD v1.0 (sistema de validação de portaria)
-**Infraestrutura alvo:** Railway Hobby + Vercel Free + Supabase Free + Resend Free
+**Infraestrutura alvo:** Railway (backend + frontend + Postgres) + Cloudflare + Resend
 
 ---
 
@@ -414,9 +414,8 @@ entity_id, details (JSON), ip_address, created_at
 
 | Serviço | Uso | Tier | Limite relevante |
 |---|---|---|---|
-| **Railway Hobby** | Backend Node.js | Gratuito | $5 crédito/mês |
-| **Vercel Free** | Frontend React/PWA | Gratuito | 100GB bandwidth/mês |
-| **Supabase Free** | PostgreSQL | Gratuito | 500MB storage |
+| **Railway (Hobby)** | Backend Node.js + Frontend React/PWA + PostgreSQL | Gratuito | $5 crédito/mês |
+| **Cloudflare** | DNS + CDN/proxy | Gratuito | — |
 | **Resend Free** | E-mails transacionais | Gratuito | 3.000 emails/mês |
 | **cron-job.org** | Keep-alive do backend | Gratuito | Ilimitado |
 
@@ -439,7 +438,7 @@ O Railway Hobby pode suspender serviços inativos. Para evitar delay no dia do e
 | Ingresso duplicado na emissão | Ingresso master ou gerador de convite avulso |
 | Participante sem ingresso | Convite avulso gerado pelo supervisor na hora |
 | E-mail de ativação não chega | Master pode ativar o usuário manualmente |
-| Supabase atinge 500MB | Master exporta e limpa eventos antigos |
+| Postgres (Railway) atinge o limite de storage | Master exporta e limpa eventos antigos |
 
 ---
 
@@ -475,7 +474,7 @@ O Railway Hobby pode suspender serviços inativos. Para evitar delay no dia do e
 ### Fase 5 — Testes e deploy (1 semana)
 - [ ] Testes integrados com simulação de evento (3.000 ingressos, 10 terminais)
 - [ ] Configuração do keep-alive no cron-job.org
-- [ ] Deploy Vercel (frontend) + Railway (backend)
+- [ ] Deploy Railway (frontend + backend) + Cloudflare (DNS/CDN)
 - [ ] Treinamento do cliente
 
 ---

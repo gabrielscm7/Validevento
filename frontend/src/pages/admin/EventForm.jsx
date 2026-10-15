@@ -3,7 +3,10 @@ import { useNavigate, useParams } from 'react-router-dom'
 import TopBar from '../../components/TopBar'
 import { PageLoader, ErrorNotice } from '../../components/feedback'
 import Btn from '../../components/ui'
+import TenantSelect from '../../components/master/TenantSelect'
 import { getEvent, createEvent, updateEvent } from '../../services/eventsService'
+import { useAuthStore } from '../../store/authStore'
+import { useActiveTenantId } from '../../store/scopeStore'
 
 const EMPTY = {
   name: '',
@@ -30,6 +33,8 @@ function toLocalInput(iso) {
 export default function EventForm() {
   const { id } = useParams()
   const isEdit = !!id
+  const isMaster = useAuthStore((s) => s.user?.role) === 'master'
+  const tenantId = useActiveTenantId()
   const [form, setForm] = useState(EMPTY)
   const [loading, setLoading] = useState(isEdit)
   const [error, setError] = useState('')
@@ -97,6 +102,7 @@ export default function EventForm() {
         await updateEvent(id, payload)
         navigate(`/admin/eventos/${id}`)
       } else {
+        if (isMaster && tenantId) payload.tenant_id = tenantId
         const created = await createEvent(payload)
         navigate(`/admin/eventos/${created.id}`, { replace: true })
       }
@@ -113,6 +119,7 @@ export default function EventForm() {
     <div className="page">
       <TopBar crumb={`Admin · ${isEdit ? 'Editar' : 'Novo'} evento`} />
       <div className="page-body narrow">
+        {isMaster && !isEdit && <TenantSelect />}
         <section className="hero">
           <div>
             <p className="hero-eyebrow">Evento</p>
@@ -188,7 +195,7 @@ export default function EventForm() {
           </div>
 
           <div className="flex gap-2 mt-2">
-            <Btn type="submit" variant="primary" size="lg" loading={saving} disabled={!form.name}>
+            <Btn type="submit" variant="primary" size="lg" loading={saving} disabled={!form.name || (isMaster && !isEdit && !tenantId)}>
               {isEdit ? 'Salvar alterações' : 'Criar evento'}
             </Btn>
             <Btn type="button" variant="ghost" size="lg" onClick={() => navigate(isEdit ? `/admin/eventos/${id}` : '/admin/eventos')}>
