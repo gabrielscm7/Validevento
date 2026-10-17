@@ -1,5 +1,50 @@
 # Changelog — Validevento
 
+## v2.6.1 — Exclusão definitiva de eventos (hard delete) (2026-10-15)
+
+### Resumo
+
+Corrige o comportamento em que eventos "apagados" (purgados) continuavam
+aparecendo e acessíveis na gestão do master. O "Apagar tudo" deixa de ser um
+soft delete (status `purged`) e passa a **excluir o evento de fato**, junto com
+todos os dados operacionais. O log de auditoria é preservado.
+
+### 🐞 Causa raiz
+
+- `events.purge.js` só executava `UPDATE events SET status = 'purged'` — a linha
+  do evento nunca era removida (não existe `DELETE FROM events` em nenhum lugar).
+- `events.service.js:listEvents` não filtrava `status <> 'purged'` e
+  `getEventById` não bloqueava eventos purgados, então continuavam listados e
+  acessíveis.
+- No frontend, `EventCard` não mapeava `purged`, exibindo o evento como
+  "Rascunho" com link **Editar**.
+
+### 🔧 Correções
+
+- **Full purge = hard delete**: remove os dados operacionais/configuração e, por
+  fim, a linha do evento (`DELETE FROM events`). `entry_logs`, `tickets`,
+  `batches`, `terminals`, `gates`, `event_team`, `event_config` e
+  `master_tickets` são removidos; `audit_logs` usa `ON DELETE SET NULL`, então o
+  registro de auditoria permanece (apenas `event_id` vira `NULL`, `entity_id` e
+  `details` são mantidos).
+- **Migration `014_purge_remove_purged_events.sql`**: remove eventos que ficaram
+  como `status = 'purged'` no modelo antigo (e seus dados). Idempotente.
+- **Master/Admin UI**: eventos purgados deixam de ser tratados como rascunho —
+  a badge mostra "excluído", e as ações (Abrir/Editar/Configurar/Dashboard) somem.
+  No `ClientDetail` do master, o botão de lixeira passa a "Excluir evento
+  definitivamente" e fica disponível também para eventuais registros purgados
+  legados.
+- **Modal**: textos do modo "Apagar tudo" atualizados para deixar claro que o
+  evento é excluído permanentemente e some das listas.
+
+### 🧪 Testes
+
+- Backend **139/139** (`events.test.js` atualizado: T-events-purge-1, T-reset-7/8
+  agora verificam exclusão real, 404 no detalhe e ausência na listagem).
+- Frontend **62/62**, `lint` 0, `build` OK.
+
+---
+
 ## v2.6.0 — Confirmação, desfazer e correções do scanner (2026-10-15)
 
 ### Resumo

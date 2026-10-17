@@ -9,6 +9,7 @@ const STATUS_META = {
   draft: { label: 'Rascunho', cls: 'badge-gray' },
   active: { label: 'Ativo', cls: 'badge-green' },
   closed: { label: 'Encerrado', cls: 'badge-red' },
+  purged: { label: 'Excluído', cls: 'badge-gray' },
 }
 
 /**
@@ -71,19 +72,25 @@ export default function EventCard({ event }) {
           </div>
         )}
 
-        <div className="flex gap-2 mt-4 flex-wrap">
-          <Link to={`/supervisor/${event.id}`} className="btn-primary btn-sm btn">Acessar dashboard</Link>
-          <Link to={`/admin/eventos/${event.id}/config`} className="btn-outline btn-sm btn">Configurar</Link>
-          {event.status !== 'closed' && (
-            <Link to={`/admin/eventos/${event.id}`} className="btn-ghost btn-sm btn">Editar</Link>
-          )}
-        </div>
+        {event.status === 'purged' ? (
+          <p className="card-sub mt-4">Este evento foi excluído e não pode mais ser acessado.</p>
+        ) : (
+          <>
+            <div className="flex gap-2 mt-4 flex-wrap">
+              <Link to={`/supervisor/${event.id}`} className="btn-primary btn-sm btn">Acessar dashboard</Link>
+              <Link to={`/admin/eventos/${event.id}/config`} className="btn-outline btn-sm btn">Configurar</Link>
+              {event.status !== 'closed' && (
+                <Link to={`/admin/eventos/${event.id}`} className="btn-ghost btn-sm btn">Editar</Link>
+              )}
+            </div>
 
-        {event.status === 'active' && (
-          <button type="button" className="btn-ghost btn-sm mt-2" style={{ color: 'var(--vv-blue)' }}
-            onClick={() => navigate(`/terminal/${event.id}`)}>
-            Abrir terminal →
-          </button>
+            {event.status === 'active' && (
+              <button type="button" className="btn-ghost btn-sm mt-2" style={{ color: 'var(--vv-blue)' }}
+                onClick={() => navigate(`/terminal/${event.id}`)}>
+                Abrir terminal →
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>

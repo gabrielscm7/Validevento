@@ -273,7 +273,7 @@ describe('Gestão de eventos (Fase 2)', () => {
     expect(res.body.duplicate_attempts).toBe(0);
   });
 
-  test('T-events-purge-1: apaga dados operacionais e preserva evento fechado', async () => {
+  test('T-events-purge-1: full purge exclui o evento (hard delete) e preserva auditoria', async () => {
     const event = await createEventViaApi('Festival Para Purgar');
     const close = await api()
       .patch(`/api/events/${event.id}/status`)
@@ -315,21 +315,35 @@ describe('Gestão de eventos (Fase 2)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.event_id).toBe(event.id);
+    expect(res.body.deleted).toBe(true);
+    expect(res.body.new_status).toBeNull();
 
-    const eventRow = await helpers.pool.query('SELECT name, status FROM events WHERE id = $1', [event.id]);
-    expect(eventRow.rows[0]).toMatchObject({ name: 'Festival Para Purgar', status: 'purged' });
+    // Hard delete: a linha do evento é removida de fato.
+    const eventRow = await helpers.pool.query('SELECT 1 FROM events WHERE id = $1', [event.id]);
+    expect(eventRow.rowCount).toBe(0);
 
     for (const table of ['entry_logs', 'tickets', 'batches', 'event_config', 'event_team', 'gates', 'master_tickets', 'terminals']) {
       const rows = await helpers.pool.query(`SELECT COUNT(*)::int AS count FROM ${table} WHERE event_id = $1`, [event.id]);
       expect(rows.rows[0].count).toBe(0);
     }
-    const auditRows = await helpers.pool.query(
-      `SELECT action FROM audit_logs WHERE event_id = $1`,
+
+    // Auditoria preservada (event_id vira NULL via ON DELETE SET NULL; entity_id mantém).
+    const purgeAudit = await helpers.pool.query(
+      `SELECT action FROM audit_logs WHERE entity_id = $1 AND action = 'event_data_purged'`,
       [event.id]
     );
-    expect(auditRows.rows.map((row) => row.action)).toEqual(
-      expect.arrayContaining(['test_event_data', 'event_data_purged'])
+    expect(purgeAudit.rowCount).toBe(1);
+    const legacyAudit = await helpers.pool.query(
+      `SELECT COUNT(*)::int AS c FROM audit_logs WHERE action = 'test_event_data'`
     );
+    expect(legacyAudit.rows[0].c).toBeGreaterThanOrEqual(1);
+
+    // Não pode mais ser acessado nem aparecer na listagem.
+    const detail = await api().get(`/api/events/${event.id}`).set(auth(adminToken));
+    expect(detail.status).toBe(404);
+
+    const list = await api().get('/api/events').set(auth(adminToken));
+    expect(list.body.some((e) => e.id === event.id)).toBe(false);
   });
 
   test('T-reset-1: Reset remove tickets e logs mas mantém event_config', async () => {
@@ -458,10 +472,11 @@ describe('Gestão de eventos (Fase 2)', () => {
       .send({ mode: 'full' });
 
     expect(res.status).toBe(200);
-    expect(res.body.new_status).toBe('purged');
+    expect(res.body.deleted).toBe(true);
+    expect(res.body.new_status).toBeNull();
 
-    const row = await helpers.pool.query('SELECT status FROM events WHERE id = $1', [event.id]);
-    expect(row.rows[0].status).toBe('purged');
+    const row = await helpers.pool.query('SELECT 1 FROM events WHERE id = $1', [event.id]);
+    expect(row.rowCount).toBe(0);
   });
 
   test('T-reset-8: Master pode full purge de evento active', async () => {
@@ -478,7 +493,10 @@ describe('Gestão de eventos (Fase 2)', () => {
       .send({ mode: 'full' });
 
     expect(res.status).toBe(200);
-    expect(res.body.new_status).toBe('purged');
+    expect(res.body.deleted).toBe(true);
+
+    const row = await helpers.pool.query('SELECT 1 FROM events WHERE id = $1', [event.id]);
+    expect(row.rowCount).toBe(0);
   });
 
   test('T-reset-9: Master sem cliente selecionado não purga (403)', async () => {

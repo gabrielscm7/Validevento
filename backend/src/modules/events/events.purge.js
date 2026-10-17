@@ -11,8 +11,10 @@ function purgeError(status, message, code) {
  * Apaga os dados operacionais de um evento.
  *
  * mode:
- *  - 'full'  (padrão) — apaga dados operacionais E de configuração; exige
- *                        evento encerrado; status final 'purged'.
+ *  - 'full'  (padrão) — EXCLUI o evento definitivamente (hard delete): apaga
+ *                        todos os dados operacionais, de configuração e a
+ *                        própria linha do evento. Exige evento encerrado
+ *                        (master ignora). O log de auditoria é preservado.
  *  - 'reset'          — apaga apenas dados operacionais e mantém a estrutura
  *                        (config, equipe, portões, nome/data/local); volta
  *                        para 'draft'. Permitido em eventos ativos ou encerrados.
@@ -47,7 +49,9 @@ async function purgeEventData(eventId, tenantId, userId, mode = 'full', userRole
     );
   }
 
-  if (event.status === 'purged') {
+  // Eventos 'purged' são resquício do modelo antigo (soft). Full purge pode
+  // excluí-los definitivamente; reset não faz sentido sobre eles.
+  if (event.status === 'purged' && mode === 'reset') {
     throw purgeError(422, 'Este evento já foi purgado.', 'already_purged');
   }
 
@@ -93,7 +97,10 @@ async function purgeEventData(eventId, tenantId, userId, mode = 'full', userRole
         [eventId]
       );
     } else {
-      // FULL PURGE: comportamento original — apaga tudo.
+      // FULL PURGE: exclusão definitiva (hard delete).
+      // Removemos os filhos explicitamente (na ordem correta) para não depender
+      // de múltiplos caminhos de cascade em entry_logs; por fim apagamos o
+      // evento. audit_logs usa ON DELETE SET NULL, preservando o histórico.
       for (const table of [
         'entry_logs',
         'master_tickets',
@@ -106,22 +113,20 @@ async function purgeEventData(eventId, tenantId, userId, mode = 'full', userRole
       ]) {
         await client.query(`DELETE FROM ${table} WHERE event_id = $1`, [eventId]);
       }
-      await client.query(
-        `UPDATE events SET status = 'purged' WHERE id = $1`,
-        [eventId]
-      );
+      await client.query('DELETE FROM events WHERE id = $1', [eventId]);
     }
 
     // audit_logs são imutáveis; o histórico do evento permanece preservado.
     await client.query('COMMIT');
 
-    const modeLabel = mode === 'reset' ? 'resetado' : 'purgado';
+    const modeLabel = mode === 'reset' ? 'resetado' : 'excluído';
     return {
       message: `Evento "${event.name}" ${modeLabel} com sucesso.`,
       event_id: eventId,
       event_name: event.name,
       mode,
-      new_status: mode === 'reset' ? 'draft' : 'purged',
+      new_status: mode === 'reset' ? 'draft' : null,
+      deleted: mode !== 'reset',
       purged_at: new Date().toISOString(),
     };
   } catch (error) {

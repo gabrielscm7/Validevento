@@ -47,7 +47,7 @@ export default function PurgeEventModal({ eventId, eventName, onSuccess, onClose
     <Modal
       open
       onClose={loading ? undefined : onClose}
-      title={isReset ? 'Resetar dados do evento' : 'Apagar todos os dados'}
+      title={isReset ? 'Resetar dados do evento' : 'Excluir evento permanentemente'}
       footer={(
         <>
           <Btn variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Btn>
@@ -57,7 +57,7 @@ export default function PurgeEventModal({ eventId, eventName, onSuccess, onClose
             onClick={handleAction}
             disabled={!canConfirm}
           >
-            {isReset ? 'Resetar dados operacionais' : 'Apagar tudo permanentemente'}
+            {isReset ? 'Resetar dados operacionais' : 'Excluir evento permanentemente'}
           </Btn>
         </>
       )}
@@ -135,14 +135,16 @@ export default function PurgeEventModal({ eventId, eventName, onSuccess, onClose
               Esta ação é irreversível.
             </p>
             <p>
-              Todos os dados operacionais E de configuração do evento{' '}
-              <strong>{eventName}</strong> serão removidos permanentemente.
+              O evento <strong>{eventName}</strong> e todos os seus dados serão
+              excluídos definitivamente — ele deixa de aparecer nas listas e não
+              poderá mais ser acessado.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-sm">
             <div>
-              <p className="label">Será apagado</p>
+              <p className="label">Será excluído</p>
               <ul className="text-sm">
+                <li>O próprio evento</li>
                 <li>Ingressos e lotes</li>
                 <li>Logs de validação</li>
                 <li>Configurações</li>
@@ -153,8 +155,7 @@ export default function PurgeEventModal({ eventId, eventName, onSuccess, onClose
             <div>
               <p className="label">Será mantido</p>
               <ul className="text-sm">
-                <li>Nome, data e local</li>
-                <li>Log desta exclusão</li>
+                <li>Log de auditoria desta exclusão</li>
               </ul>
             </div>
           </div>

@@ -177,11 +177,15 @@ export default function ClientDetail() {
                   </p>
                 </div>
                 <span className={`badge ${
-                  e.status === 'active' ? 'badge-green' : e.status === 'draft' ? 'badge-gray' : 'badge-red'
-                }`}>{e.status}</span>
+                  e.status === 'active' ? 'badge-green'
+                    : e.status === 'draft' ? 'badge-gray'
+                      : e.status === 'purged' ? 'badge-gray'
+                        : 'badge-red'
+                }`}>{e.status === 'purged' ? 'excluído' : e.status}</span>
                 <button
                   type="button"
                   className="btn-ghost btn-sm"
+                  disabled={e.status === 'purged'}
                   onClick={() => { setTenant(id, client?.name); navigate(`/admin/eventos/${e.id}`) }}
                 >
                   Abrir
@@ -189,11 +193,10 @@ export default function ClientDetail() {
                 <button
                   type="button"
                   className="btn-icon btn-ghost"
-                  disabled={e.status === 'purged'}
-                  title={e.status === 'purged' ? 'Dados já apagados' : 'Apagar dados do evento'}
-                  onClick={() => e.status !== 'purged' && setPurgeEvent(e)}
-                  aria-label={e.status === 'purged' ? 'Dados já apagados' : `Apagar dados de ${e.name}`}
-                  style={{ color: e.status === 'purged' ? 'var(--text-muted)' : 'var(--danger)' }}
+                  title="Excluir evento definitivamente"
+                  onClick={() => setPurgeEvent(e)}
+                  aria-label={`Excluir ${e.name}`}
+                  style={{ color: 'var(--danger)' }}
                 >
                   🗑
                 </button>
